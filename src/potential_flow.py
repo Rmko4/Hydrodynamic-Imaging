@@ -75,18 +75,22 @@ class PotentialFlowEnv:
     def rho(self, s, b, d):
         return (s - b) / d
 
-    def v_set(self, s_bar, samples):
+    def v_set(self, s_bar, samples_y):
         s_len = s_bar.shape[0]
-        u_bar_s = np.empty([samples.shape[0], 2*s_len])
-        for i in range(samples):
-            y_bar = samples[i]
-            for j in range(s_bar):
-                s = s_bar[j]
+        samples_u = []
+        for i in range(len(samples_y)):
+            y_bar = tf.convert_to_tensor(samples_y[i], dtype=tf.float32)
+            u_bar = []
+            for j in range(len(s_bar)):
+                s = tf.convert_to_tensor(s_bar[j], dtype=tf.float32)
                 # u_bar = tf.TensorArray(tf.float32, size=s_len)
                 # print("Tracing with", s, y_bar)
                 mu_x, mu_y = self.v(s, y_bar)
-                u_bar_s[i][2*j] = mu_x
-                u_bar_s[i][2*j + 1] = mu_y
+
+                u_bar.append(mu_x)
+                u_bar.append(mu_y)
+            samples_u.append(u_bar)
+        return samples_u
 
     def sample_sensor_data(self, min_distance=100, k=30):
         if not self.domains:
@@ -95,13 +99,15 @@ class PotentialFlowEnv:
             phi = [0, max(self.dimensions)]
             self.domains = np.array([x, y, phi])
 
-        samples = sampling.poisson_disk_sample(self.domains, min_distance, k)
-        samples[:, 2] = 2 * np.pi * samples[:, 2] / (self.domains[2, 1])
+        samples_y = sampling.poisson_disk_sample(self.domains, min_distance, k)
+        samples_y[:, 2] = 2 * np.pi * samples_y[:, 2] / (self.domains[2, 1])
 
-        self.v_set(self.sensor.s_bar, samples)
+        samples_u = self.v_set(self.sensor.s_bar, samples_y)
+        return samples_u, samples_y
 
 
 def main():
+    tf.config.run_functions_eagerly(True)
     pfenv = PotentialFlowEnv()
     vel = pfenv.v(tf.constant(0.), (tf.constant(1.),
                                     tf.constant(1.), tf.constant(0.)))
