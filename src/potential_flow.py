@@ -1,21 +1,19 @@
 # Use the full module location. Unfortunately it is aliased.
 
-#import tensorflow.compat.v1 as tf
-import tensorflow_core._api.v1.compat.v1 as tf
-#import tensorflow.keras
-import tensorflow_core.python.keras.api._v1.keras as keras
+import tensorflow as tf
+import tensorflow.keras as keras
 import numpy as np
-import matplotlib.pyplot as plt
+import sampling
+
 
 class PotentialFlowEnv:
-    def __init__(self, dimensions=(500, 1000), y_offset=0, sensor=None):
+    def __init__(self, dimensions=(1000, 500), y_offset=0, sensor=None):
         self.dimensions = dimensions
         self.y_offset = y_offset
         self.sensor = sensor
+        self.domains = None
 
-    def sample_sensor_data():
-        pass
-
+    # @tf.function
     def v(self, s, y_bar, a=10., W=100.):
         b = y_bar[0]
         d = y_bar[1]
@@ -40,27 +38,37 @@ class PotentialFlowEnv:
 
         return v_x, v_y
 
+    # @tf.function
     def Psi_e(self, rho):
         rho_sq = tf.square(rho)
         return (2 * rho_sq - 1) / tf.pow(1 + rho_sq, 2.5)
 
+    # @tf.function
     def Psi_o(self, rho):
         rho_sq = tf.square(rho)
         return (-3 * rho) / tf.pow(1 + rho_sq, 2.5)
 
+    # @tf.function
     def Psi_n(self, rho):
         rho_sq = tf.square(rho)
         return (2 - rho_sq) / tf.pow(1 + rho_sq, 2.5)
 
+    # @tf.function
     def rho(self, s, b, d):
         return (s - b) / d
 
-# function to get sensor at equaly spaced intervals within range
+    def sample_sensor_data(self, min_distance=100, k=30):
+        if not self.domains:
+            x = [-self.dimensions[0]/2, self.dimensions[0]/2]
+            y = [self.y_offset, self.y_offset + self.dimensions[1]]
+            phi = [0, max(self.dimensions)]
+            self.domains = np.array([x, y, phi])
 
-# function to get training samples
-# Size of the sampling position range
-# Number of samples or blue noise sampling distance.
+        samples = sampling.poisson_disk_sample(self.domains, min_distance, k)
+        samples[:, 2] = 2 * np.pi * samples[:, 2] / (self.domains[2, 1])
 
+        y_bar_tf = tf.placeholder(tf.float32, samples.shape)
+        return samples
 
 class SensorArray:
     def __init__(self, n_sensors=1, range=(-100, 100), s_bar=None):
@@ -74,16 +82,16 @@ class SensorArray:
             s_bar = np.zeros(1)
         else:
             s_bar = np.linspace(range[0], range[1], n_sensors)
-        
+
         return s_bar
 
     pass
 
+
 def main():
-    tf.enable_eager_execution()
-    das = PotentialFlowEnv.v(tf.constant(
-        0.), (tf.constant(1.), tf.constant(1.), tf.constant(0.)))
-    print(das[0])
+    pfenv = PotentialFlowEnv()
+    vel = pfenv.v(tf.constant(0.), (tf.constant(1.), tf.constant(1.), tf.constant(0.)))
+    print(vel)
     pass
 
 
