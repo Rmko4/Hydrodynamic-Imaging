@@ -1,5 +1,6 @@
 import potential_flow as pf
 from potential_flow import PotentialFlowEnv, SensorArray, sampling
+from mlp import MLP
 
 D = 500
 Y_OFFSET = 25
@@ -15,7 +16,12 @@ if __name__ == "__main__":
     sensors = SensorArray(N_SENSORS, (-D_sensors, D_sensors))
     pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors)
 
-    samples = pfenv.sample_sensor_data()
-    sampling.plot(samples, "mm")
+    samples_u, samples_y = pfenv.sample_sensor_data()
+    sampling.plot(samples_y, "mm")
+
+    mlp = MLP(pfenv)
+    mlp.fit(samples_u, samples_y, batch_size=64, validation_split=0.2, epochs=100)
+
+
     
     pass

@@ -1,7 +1,6 @@
 # Use the full module location. Unfortunately it is aliased.
 
 import tensorflow as tf
-import tensorflow.keras as keras
 import numpy as np
 import sampling
 
@@ -25,6 +24,8 @@ class SensorArray:
 
 
 class PotentialFlowEnv:
+    Y_BAR_SIZE = 3
+
     def __init__(self, dimensions=(1000, 500), y_offset=0, sensor: SensorArray = None):
         self.dimensions = dimensions
         self.y_offset = y_offset
@@ -98,16 +99,25 @@ class PotentialFlowEnv:
             y = [self.y_offset, self.y_offset + self.dimensions[1]]
             phi = [0, max(self.dimensions)]
             self.domains = np.array([x, y, phi])
-
+        #Write to tensor array
         samples_y = sampling.poisson_disk_sample(self.domains, min_distance, k)
         samples_y[:, 2] = 2 * np.pi * samples_y[:, 2] / (self.domains[2, 1])
 
-        samples_u = self.v_set(self.sensor.s_bar, samples_y)
+        samples_u = self.v_set(self.getSensor().s_bar, samples_y)
+        samples_u = np.array(samples_u)
+        self.samples = (samples_u, samples_y)
         return samples_u, samples_y
+
+    def getSensor(self):
+        if self.sensor is None:
+            print("No sensor array present. Default sensor array is instantiated.")
+            self.sensor = SensorArray()
+        return self.sensor
+            
 
 
 def main():
-    tf.config.run_functions_eagerly(True)
+    tf.config.run_functions_eagerly(False)
     pfenv = PotentialFlowEnv()
     vel = pfenv.v(tf.constant(0.), (tf.constant(1.),
                                     tf.constant(1.), tf.constant(0.)))
