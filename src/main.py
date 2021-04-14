@@ -1,27 +1,37 @@
 import potential_flow as pf
 from potential_flow import PotentialFlowEnv, SensorArray, sampling
 from mlp import MLP
+from qm import QM
+import numpy as np
 
-D = 500
-Y_OFFSET = 25
+import tensorflow as tf
+
+D = .5
+Y_OFFSET = .025
 N_SENSORS = 8
 
-if __name__ == "__main__":
-    pf.main()
-    D_v = D
+def main():
+    D_sensors = 0.5 * D
+    dimensions = (2 * D, D)
     y_offset_v = Y_OFFSET
-    D_sensors = 0.4 * D
-    dimensions = (2 * D_v, D_v)
+    a_v = 0.05 * D
+    W_v = 0.5 * D
 
     sensors = SensorArray(N_SENSORS, (-D_sensors, D_sensors))
-    pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors)
+    pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors, a_v, W_v)
 
     samples_u, samples_y = pfenv.sample_sensor_data()
-    sampling.plot(samples_y, "mm")
+    # sampling.plot(samples_y, "m")
 
     mlp = MLP(pfenv)
-    mlp.fit(samples_u, samples_y, batch_size=64, validation_split=0.2, epochs=100)
+    mlp.compile()
+    mlp.fit(samples_u, samples_y, batch_size=500, validation_split=0.2, epochs=100)
+    a = np.array([samples_u[0]])
+    # print(mlp.predict(a))
+    # print(samples_y[0])
+    # qm = QM(pfenv)
+    # print(qm.predict(a))
 
 
-    
-    pass
+if __name__ == "__main__":
+    main()

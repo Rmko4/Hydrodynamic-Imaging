@@ -6,7 +6,7 @@ import sampling
 
 
 class SensorArray:
-    def __init__(self, n_sensors=1, range=(-100, 100), s_bar=None):
+    def __init__(self, n_sensors=1, range=(-.1, .1), s_bar=None):
         if s_bar is None:
             self.s_bar = SensorArray.uniform_interval_sensors(n_sensors, range)
         else:
@@ -26,14 +26,18 @@ class SensorArray:
 class PotentialFlowEnv:
     Y_BAR_SIZE = 3
 
-    def __init__(self, dimensions=(1000, 500), y_offset=0, sensor: SensorArray = None):
+    def __init__(self, dimensions=(1, .5), y_offset=0, sensor: SensorArray = None, a=.025, W=.25):
         self.dimensions = dimensions
         self.y_offset = y_offset
         self.sensor = sensor
         self.domains = None
+        self.a = a
+        self.W = W
 
     @tf.function
-    def v(self, s, y_bar, a=10., W=100.):
+    def v(self, s, y_bar):
+        a = self.a
+        W = self.W
         b = y_bar[0]
         d = y_bar[1]
 
@@ -77,29 +81,27 @@ class PotentialFlowEnv:
         return (s - b) / d
 
     def v_set(self, s_bar, samples_y):
-        s_len = s_bar.shape[0]
         samples_u = []
         for i in range(len(samples_y)):
             y_bar = tf.convert_to_tensor(samples_y[i], dtype=tf.float32)
-            u_bar = []
+            u_x_bar = []
+            u_y_bar = []
             for j in range(len(s_bar)):
                 s = tf.convert_to_tensor(s_bar[j], dtype=tf.float32)
-                # u_bar = tf.TensorArray(tf.float32, size=s_len)
-                # print("Tracing with", s, y_bar)
                 mu_x, mu_y = self.v(s, y_bar)
+                u_x_bar.append(mu_x)
+                u_y_bar.append(mu_y)
 
-                u_bar.append(mu_x)
-                u_bar.append(mu_y)
-            samples_u.append(u_bar)
+            samples_u.append(u_x_bar + u_y_bar)
         return samples_u
 
-    def sample_sensor_data(self, min_distance=100, k=30):
+    def sample_sensor_data(self, min_distance=.1, k=30):
         if not self.domains:
             x = [-self.dimensions[0]/2, self.dimensions[0]/2]
             y = [self.y_offset, self.y_offset + self.dimensions[1]]
             phi = [0, max(self.dimensions)]
             self.domains = np.array([x, y, phi])
-        #Write to tensor array
+        # Write to tensor array
         samples_y = sampling.poisson_disk_sample(self.domains, min_distance, k)
         samples_y[:, 2] = 2 * np.pi * samples_y[:, 2] / (self.domains[2, 1])
 
@@ -113,15 +115,15 @@ class PotentialFlowEnv:
             print("No sensor array present. Default sensor array is instantiated.")
             self.sensor = SensorArray()
         return self.sensor
-            
 
 
 def main():
     tf.config.run_functions_eagerly(False)
     pfenv = PotentialFlowEnv()
-    vel = pfenv.v(tf.constant(0.), (tf.constant(1.),
-                                    tf.constant(1.), tf.constant(0.)))
-    print(vel)
+    print(pfenv.v(tf.constant(0.), (tf.constant(.05),
+                                    tf.constant(.1), tf.constant(0.))))
+    print(pfenv.v(tf.constant(-.25), (tf.constant(.5),
+                                    tf.constant(.5), tf.constant(0.))))
     pass
 
 
