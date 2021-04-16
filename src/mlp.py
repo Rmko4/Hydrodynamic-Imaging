@@ -11,7 +11,7 @@ class RescaleProfile(keras.layers.Layer):
 
     def _rescale(self, x):
         abs_max = tf.reduce_max(tf.abs(x), axis=1)
-        output = x/tf.reshape(abs_max, (-1,1))
+        output = x/tf.reshape(abs_max, (-1, 1))
         return output
 
     def call(self, inputs):
@@ -24,8 +24,9 @@ class RescaleProfile(keras.layers.Layer):
     def compute_output_shape(self, input_shape):
         return input_shape
 
+
 class CubicRootNormalize(keras.layers.Layer):
-    def __init__(self, pfenv : PotentialFlowEnv, **kwargs):
+    def __init__(self, pfenv: PotentialFlowEnv, **kwargs):
         super(CubicRootNormalize, self).__init__(**kwargs)
         self.pfenv = pfenv
 
@@ -41,7 +42,8 @@ class CubicRootNormalize(keras.layers.Layer):
 
     def call(self, inputs):
         u_x, u_y = tf.split(inputs, 2, axis=1)
-        scale = np.math.pow(self.pfenv.y_offset, 3) / (self.pfenv.W * np.math.pow(self.pfenv.a, 3))
+        scale = np.math.pow(self.pfenv.y_offset, 3) / \
+            (self.pfenv.W * np.math.pow(self.pfenv.a, 3))
 
         u_x = self._normalize(u_x, 0.5*scale)
         u_y = self._normalize(u_y, scale)
@@ -51,6 +53,19 @@ class CubicRootNormalize(keras.layers.Layer):
 
     def compute_output_shape(self, input_shape):
         return input_shape
+
+
+def MED_p(y_true, y_pred):
+    L2_norm = tf.sqrt(tf.reduce_sum(tf.square(y_true[:, 0:2] - y_pred[:, 0:2]), axis=-1))
+    return tf.reduce_mean(L2_norm)
+
+def MDE_phi(y_true, y_pred):
+    phi_e = y_true[:, 2] - y_pred[:, 2]
+    abs_atan2 = tf.abs(tf.atan2(tf.sin(phi_e), tf.cos(phi_e)))
+    return tf.reduce_mean(abs_atan2)
+
+def MSE(y_true, y_pred):
+    return tf.reduce_mean(tf.square(y_true - y_pred))
 
 
 class MLP(keras.Sequential):
@@ -70,20 +85,29 @@ class MLP(keras.Sequential):
         # Either transform and wrap phi. Or use special loss function.
         self.summary()
 
-
     def compile(self):
         super(MLP, self).compile(
             optimizer=keras.optimizers.Adam(),  # Optimizer
             # Loss function to minimize
-            loss=keras.losses.MeanAbsoluteError(),
+            loss=keras.losses.MeanSquaredError(),
             # List of metrics to monitor
-            metrics=[keras.metrics.MeanAbsoluteError()],
-            # run_eagerly=True
+            metrics=[keras.losses.MSE, MSE, MED_p, MDE_phi],
         )
+
+    def _normalize_y(y_bar):
+        return tf.constant([y_bar[:, 0], y_bar[:, 1], tf.cos(y_bar[:, 2]), tf.sin(y_bar[:, 2])])
+
+    def _MSE_normalize():
+        return
 
 
 def main():
-    m = MLP(PotentialFlowEnv(sensor=SensorArray(8)))
+    # m = MLP(PotentialFlowEnv(sensor=SensorArray(8)))
+    y_true = tf.constant([[1., 1., 0.], [2., 3., 3.]])
+    y_pred = tf.constant([[2., 3., 6], [2., 3., 3.]])
+    # print(rMSE_p(y_true, y_pred))
+    # print(MSE_p(y_true, y_pred))
+    print(MED_p(y_true, y_pred))
 
 
 if __name__ == "__main__":
