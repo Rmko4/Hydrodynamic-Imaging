@@ -12,11 +12,14 @@ class SensorArray:
         else:
             self.s_bar = s_bar
 
+    def __call__(self):
+        return self.s_bar
+
     def uniform_interval_sensors(n_sensors, range):
         if n_sensors == 1:
-            s_bar = np.zeros(1)
+            s_bar = tf.constant([0])
         else:
-            s_bar = np.linspace(range[0], range[1], n_sensors)
+            s_bar = tf.constant(np.linspace(range[0], range[1], n_sensors))
 
         return s_bar
 
@@ -29,22 +32,29 @@ class PotentialFlowEnv:
     def __init__(self, dimensions=(1, .5), y_offset=0, sensor: SensorArray = None, a=.025, W=.25):
         self.dimensions = dimensions
         self.y_offset = y_offset
-        self.sensor = sensor
         self.domains = None
-        self.a = a
-        self.W = W
+        
+        self.initSensor(sensor)
+
+        self.a = tf.constant(a)
+        self.W = tf.constant(W)
+        self.C_d = 0.5 * W * tf.pow(a, 3.)
+
+    @tf.function
+    def __call__(self, y_bar):
+        s_bar = self.sensor()
+
+        pass
 
     @tf.function
     def v(self, s, y_bar):
-        a = self.a
-        W = self.W
         b = y_bar[0]
         d = y_bar[1]
-
         phi = y_bar[2]
+
         rho = (s - b) / d
 
-        c = 0.5 * W * tf.pow(a, 3.) / tf.pow(d, 3.)
+        c = self.C_d / tf.pow(d, 3.)
 
         rho_sq = tf.square(rho)
         denum = tf.pow(1 + rho_sq, 2.)
@@ -61,22 +71,18 @@ class PotentialFlowEnv:
 
         return v_x, v_y
 
-    @tf.function
     def Psi_e(self, rho):
         rho_sq = tf.square(rho)
         return (2 * rho_sq - 1) / tf.pow(1 + rho_sq, 2.5)
 
-    @tf.function
     def Psi_o(self, rho):
         rho_sq = tf.square(rho)
         return (-3 * rho) / tf.pow(1 + rho_sq, 2.5)
 
-    @tf.function
     def Psi_n(self, rho):
         rho_sq = tf.square(rho)
         return (2 - rho_sq) / tf.pow(1 + rho_sq, 2.5)
 
-    @tf.function
     def rho(self, s, b, d):
         return (s - b) / d
 
@@ -105,20 +111,20 @@ class PotentialFlowEnv:
         samples_y = sampling.poisson_disk_sample(self.domains, min_distance, k)
         samples_y[:, 2] = 2 * np.pi * samples_y[:, 2] / (self.domains[2, 1])
 
-        samples_u = self.v_set(self.getSensor().s_bar, samples_y)
+        samples_u = self.v_set(self.sensor(), samples_y)
         samples_u = np.array(samples_u)
         self.samples = (samples_u, samples_y)
         return samples_u, samples_y
 
-    def getSensor(self):
+    def initSensor(self, sensor):
         if self.sensor is None:
-            print("No sensor array present. Default sensor array is instantiated.")
             self.sensor = SensorArray()
-        return self.sensor
+        else:
+            self.sensor = sensor
 
 
 def main():
-    tf.config.run_functions_eagerly(False)
+    tf.config.run_functions_eagerly(True)
     pfenv = PotentialFlowEnv()
     print(pfenv.v(tf.constant(0.), (tf.constant(.05),
                                     tf.constant(.1), tf.constant(0.))))

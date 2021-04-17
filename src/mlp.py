@@ -86,26 +86,33 @@ class MLP(keras.Sequential):
         # Either transform and wrap phi. Or use special loss function.
         self.summary()
 
-    def compile(self):
+    def compile(self, alpha=1):
         super(MLP, self).compile(
             optimizer=keras.optimizers.Adam(),  # Optimizer
             # Loss function to minimize
+            # MSE_f and MSE_v
             loss=[self._MSE_normalized, keras.losses.MeanSquaredError()],
             # List of metrics to monitor
             metrics=[MED_p, MDE_phi],
         )
+        self.alpha = alpha
 
     def train_step(self, data):
-        x, y = data
+        u, y = data
 
         with tf.GradientTape() as tape:
-            y_pred = self(x, training=True)  # Forward pass
+            y_pred = self(u, training=True)  # Forward pass of the MLP
+            u_pred = self.pfenv(y_pred) # Forward pass of the potential flow model.
             # Compute the loss value
             # (the loss function is configured in `compile()`)
-            loss = self.compiled_loss(y, y_pred, regularization_losses=self.losses)
+            loss_f = self.compiled_loss[0](y, y_pred)
+            loss_v = self.compiled_loss[1](u, u_pred)
+
+            loss = (loss_f + self.alpha * loss_v) / (1 + self.alpha)
 
         # Compute gradients
         trainable_vars = self.trainable_variables
+
         gradients = tape.gradient(loss, trainable_vars)
         # Update weights
         self.optimizer.apply_gradients(zip(gradients, trainable_vars))
