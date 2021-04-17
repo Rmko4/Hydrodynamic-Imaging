@@ -12,14 +12,14 @@ class SensorArray:
         else:
             self.s_bar = s_bar
 
-    def __call__(self):
+    def __call__(self) -> tf.Tensor:
         return self.s_bar
 
     def uniform_interval_sensors(n_sensors, range):
         if n_sensors == 1:
-            s_bar = tf.constant([0])
+            s_bar = tf.constant([0.])
         else:
-            s_bar = tf.constant(np.linspace(range[0], range[1], n_sensors))
+            s_bar = tf.linspace(range[0], range[1], n_sensors)
 
         return s_bar
 
@@ -33,7 +33,6 @@ class PotentialFlowEnv:
         self.dimensions = dimensions
         self.y_offset = y_offset
         self.domains = None
-        
         self.initSensor(sensor)
 
         self.a = tf.constant(a)
@@ -41,10 +40,15 @@ class PotentialFlowEnv:
         self.C_d = 0.5 * W * tf.pow(a, 3.)
 
     @tf.function
-    def __call__(self, y_bar):
+    def __call__(self, y_bar: tf.Tensor):
         s_bar = self.sensor()
-
-        pass
+        size = tf.size(s_bar)
+        ta = tf.TensorArray(y_bar.dtype, 2*size)
+        for i in range(size):
+            v_x, v_y = self.v(s_bar[i], y_bar)
+            ta = ta.write(i, v_x)
+            ta = ta.write(size + i, v_y)
+        return ta.stack()
 
     @tf.function
     def v(self, s, y_bar):
@@ -92,6 +96,7 @@ class PotentialFlowEnv:
             y_bar = tf.convert_to_tensor(samples_y[i], dtype=tf.float32)
             u_x_bar = []
             u_y_bar = []
+            # TODO: Use call
             for j in range(len(s_bar)):
                 s = tf.convert_to_tensor(s_bar[j], dtype=tf.float32)
                 mu_x, mu_y = self.v(s, y_bar)
@@ -117,7 +122,7 @@ class PotentialFlowEnv:
         return samples_u, samples_y
 
     def initSensor(self, sensor):
-        if self.sensor is None:
+        if sensor is None:
             self.sensor = SensorArray()
         else:
             self.sensor = sensor
@@ -125,11 +130,12 @@ class PotentialFlowEnv:
 
 def main():
     tf.config.run_functions_eagerly(True)
-    pfenv = PotentialFlowEnv()
+    pfenv = PotentialFlowEnv(sensor=SensorArray(8))
+    print(pfenv(tf.constant([0., 0.5, 1.5])))
     print(pfenv.v(tf.constant(0.), (tf.constant(.05),
                                     tf.constant(.1), tf.constant(0.))))
     print(pfenv.v(tf.constant(-.25), (tf.constant(.5),
-                                    tf.constant(.5), tf.constant(0.))))
+                                      tf.constant(.5), tf.constant(0.))))
     pass
 
 
