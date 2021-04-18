@@ -39,16 +39,19 @@ class PotentialFlowEnv:
         self.W = tf.constant(W)
         self.C_d = 0.5 * W * tf.pow(a, 3.)
 
-    @tf.function
-    def __call__(self, y_bar: tf.Tensor):
+    def __call__(self, y: tf.Tensor):
+        return tf.map_fn(self.forward_step, y)
+
+    def forward_step(self, y_bar):
         s_bar = self.sensor()
         size = tf.size(s_bar)
         ta = tf.TensorArray(y_bar.dtype, 2*size)
-        for i in range(size):
+        for i in tf.range(size):
             v_x, v_y = self.v(s_bar[i], y_bar)
             ta = ta.write(i, v_x)
             ta = ta.write(size + i, v_y)
         return ta.stack()
+
 
     @tf.function
     def v(self, s, y_bar):
@@ -90,22 +93,6 @@ class PotentialFlowEnv:
     def rho(self, s, b, d):
         return (s - b) / d
 
-    def v_set(self, s_bar, samples_y):
-        samples_u = []
-        for i in range(len(samples_y)):
-            y_bar = tf.convert_to_tensor(samples_y[i], dtype=tf.float32)
-            u_x_bar = []
-            u_y_bar = []
-            # TODO: Use call
-            for j in range(len(s_bar)):
-                s = tf.convert_to_tensor(s_bar[j], dtype=tf.float32)
-                mu_x, mu_y = self.v(s, y_bar)
-                u_x_bar.append(mu_x)
-                u_y_bar.append(mu_y)
-
-            samples_u.append(u_x_bar + u_y_bar)
-        return samples_u
-
     def sample_sensor_data(self, min_distance=.1, k=30):
         if not self.domains:
             x = [-self.dimensions[0]/2, self.dimensions[0]/2]
@@ -115,9 +102,9 @@ class PotentialFlowEnv:
         # Write to tensor array
         samples_y = sampling.poisson_disk_sample(self.domains, min_distance, k)
         samples_y[:, 2] = 2 * np.pi * samples_y[:, 2] / (self.domains[2, 1])
+        samples_y = tf.constant(samples_y, tf.float32)
 
-        samples_u = self.v_set(self.sensor(), samples_y)
-        samples_u = np.array(samples_u)
+        samples_u = self(samples_y)
         self.samples = (samples_u, samples_y)
         return samples_u, samples_y
 
@@ -131,7 +118,7 @@ class PotentialFlowEnv:
 def main():
     tf.config.run_functions_eagerly(True)
     pfenv = PotentialFlowEnv(sensor=SensorArray(8))
-    print(pfenv(tf.constant([0., 0.5, 1.5])))
+    print(pfenv(tf.constant([[0., 0.5, 1.5]])))
     print(pfenv.v(tf.constant(0.), (tf.constant(.05),
                                     tf.constant(.1), tf.constant(0.))))
     print(pfenv.v(tf.constant(-.25), (tf.constant(.5),

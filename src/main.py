@@ -24,8 +24,8 @@ def main():
     # sampling.plot(samples_y, "m")
 
     mlp = MLP(pfenv)
-    mlp.compile()
-    mlp.fit(samples_u, samples_y, batch_size=32, validation_split=0.2, epochs=10000)
+    mlp.compile(physics_informed=True)
+    mlp.fit(samples_u, samples_y, batch_size=32, validation_split=0.2, epochs=10)
     a = np.array([samples_u[0]])
     # print(mlp.predict(a))
     # print(samples_y[0])

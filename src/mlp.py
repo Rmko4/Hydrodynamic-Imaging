@@ -78,7 +78,7 @@ class MLP(keras.Sequential):
         self.pfenv = pfenv
         s_bar = pfenv.sensor()
         input_shape = (2*tf.size(s_bar),)
-        self.D_2SQ = 1/self.pfenv.dimensions[0]
+        self.D_2SQ = 1/self.pfenv.dimensions[1]
         self.add(layers.InputLayer(input_shape=input_shape))
         self.add(RescaleProfile())
         # self.add(CubicRootNormalize(pfenv))
@@ -90,30 +90,38 @@ class MLP(keras.Sequential):
         # Either transform and wrap phi. Or use special loss function.
         self.summary()
 
-    def compile(self, alpha=1):
+    def compile(self, physics_informed=False, alpha=1):
+        self.alpha = alpha
+        self.physics_informed = physics_informed
+        self.PINN_loss = keras.losses.MeanSquaredError()
+
         super(MLP, self).compile(
             optimizer=keras.optimizers.Adam(),  # Optimizer
             # Loss function to minimize
-            # MSE_f and MSE_v
-            loss=[self._MSE_normalized, keras.losses.MeanSquaredError()],
+            # MSE_y
+            loss=self._MSE_normalized,
             # List of metrics to monitor
             metrics=[MED_p, MDE_phi],
+            # run_eagerly=True
         )
-        self.alpha = alpha
 
     def train_step(self, data):
         u, y = data
 
         with tf.GradientTape() as tape:
             y_pred = self(u, training=True)  # Forward pass of the MLP
-            u_pred = self.pfenv(y_pred)      # Forward pass of the potential flow model.
             # Compute the loss values
             # (the loss function is configured in `compile()`)
-            loss_f = self.compiled_loss[0](y, y_pred)
-            loss_v = self.compiled_loss[1](u, u_pred)
+            loss_y = self.compiled_loss(y, y_pred)
 
-            # Summing losses for single gradient.
-            loss = (loss_f + self.alpha * loss_v) / (1 + self.alpha)
+            if self.physics_informed:
+                # Forward pass of the potential flow model.
+                u_pred = self.pfenv(y_pred)
+                loss_u = self.PINN_loss(u, u_pred)
+                # Summing losses for single gradient.
+                loss = (loss_y + self.alpha * loss_u) / (1 + self.alpha)
+            else:
+                loss = loss_y
 
         # Compute gradients
         trainable_vars = self.trainable_variables
@@ -130,14 +138,16 @@ class MLP(keras.Sequential):
         return tf.constant([y_bar[:, 0], y_bar[:, 1], tf.cos(y_bar[:, 2]), tf.sin(y_bar[:, 2])])
 
     def _MSE_normalized(self, y_true, y_pred):
-        # Reduce sum is faster
+        # tf.shape for dynamic shape of Tensor
+        N = tf.cast(tf.shape(y_true)[0], tf.float32)
         MSE_p = self.D_2SQ * \
-            tf.reduce_mean(tf.square(y_true[:, 0:2] - y_pred[:, 0:2]))
-        MSE_phi = tf.reduce_mean(
+            tf.reduce_sum(tf.square(y_true[:, 0:2] - y_pred[:, 0:2]))
+        MSE_phi = tf.reduce_sum(
             tf.square(tf.cos(y_true[:, 2]) - tf.cos(y_pred[:, 2])))
-        MSE_phi += tf.reduce_mean(
+        MSE_phi += tf.reduce_sum(
             tf.square(tf.sin(y_true[:, 2]) - tf.sin(y_pred[:, 2])))
-        MSE_out = 0.5 * (MSE_p + 0.5 * MSE_phi)
+
+        MSE_out = (MSE_p + MSE_phi) / (4. * N)
         return MSE_out
 
 
