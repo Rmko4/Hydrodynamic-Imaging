@@ -45,6 +45,19 @@ class PotentialFlowEnv:
     def forward_step(self, y_bar):
         s_bar = self.sensor()
         size = tf.size(s_bar)
+        i = tf.constant(0)
+        c = lambda i: tf.less(i < size)
+        b = lambda i: (tf.add(i, 1), )
+        ta = tf.TensorArray(y_bar.dtype, 2*size)
+        for i in tf.range(size):
+            v_x, v_y = self.v(s_bar[i], y_bar)
+            ta = ta.write(i, v_x)
+            ta = ta.write(size + i, v_y)
+        return ta.stack()
+
+    def forward_step_old(self, y_bar):
+        s_bar = self.sensor()
+        size = tf.size(s_bar)
         ta = tf.TensorArray(y_bar.dtype, 2*size)
         for i in tf.range(size):
             v_x, v_y = self.v(s_bar[i], y_bar)

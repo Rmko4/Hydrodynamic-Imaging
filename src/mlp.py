@@ -7,7 +7,6 @@ import os
 import numpy as np
 from potential_flow import PotentialFlowEnv, SensorArray
 
-
 class RescaleProfile(keras.layers.Layer):
     def __init__(self, **kwargs):
         super(RescaleProfile, self).__init__(**kwargs)
@@ -26,7 +25,6 @@ class RescaleProfile(keras.layers.Layer):
 
     def compute_output_shape(self, input_shape):
         return input_shape
-
 
 class CubicRootNormalize(keras.layers.Layer):
     def __init__(self, pfenv: PotentialFlowEnv, **kwargs):
@@ -58,17 +56,21 @@ class CubicRootNormalize(keras.layers.Layer):
         return input_shape
 
 
+def gather_p(x):
+    return tf.gather(x, [0, 1])
+
+def gather_phi(x):
+    return tf.gather(x, 2)
+
 def MED_p(y_true, y_pred):
     L2_norm = tf.sqrt(tf.reduce_sum(
-        tf.square(y_true[:, 0:2] - y_pred[:, 0:2]), axis=-1))
+        tf.square(gather_p(y_true) - gather_p(y_pred)), axis=-1))
     return tf.reduce_mean(L2_norm)
 
-
 def MDE_phi(y_true, y_pred):
-    phi_e = y_true[:, 2] - y_pred[:, 2]
+    phi_e = gather_phi(y_true) - gather_p(y_pred)
     abs_atan2 = tf.abs(tf.atan2(tf.sin(phi_e), tf.cos(phi_e)))
     return 2 * tf.reduce_mean(abs_atan2)
-
 
 def MSE(y_true, y_pred):
     return tf.reduce_mean(tf.square(y_true - y_pred))
@@ -137,12 +139,23 @@ class MLP(keras.Sequential):
         # Return a dict mapping metric names to current value
         return {m.name: m.result() for m in self.metrics}
 
-    def _normalize_y(self, y_bar):
-        return tf.constant([y_bar[:, 0], y_bar[:, 1], tf.cos(y_bar[:, 2]), tf.sin(y_bar[:, 2])])
-
     def _MSE_normalized(self, y_true, y_pred):
         # tf.shape for dynamic shape of Tensor
         N = tf.cast(tf.shape(y_true)[0], tf.float32)
+        MSE_p = self.D_2SQ * \
+            tf.reduce_sum(tf.square(gather_p(y_true) - gather_p(y_pred)))
+        MSE_phi = tf.reduce_sum(
+            tf.square(tf.cos(gather_phi(y_true)) - tf.cos(gather_phi(y_pred))))
+        MSE_phi += tf.reduce_sum(
+            tf.square(tf.sin(gather_phi(y_true)) - tf.sin(gather_phi(y_pred))))
+
+        MSE_out = (MSE_p + MSE_phi) / (4. * N)
+        return MSE_out
+
+    def _MSE_normalized_old(self, y_true, y_pred):
+        # tf.shape for dynamic shape of Tensor
+        N = tf.cast(tf.shape(y_true)[0], tf.float32)
+        #
         MSE_p = self.D_2SQ * \
             tf.reduce_sum(tf.square(y_true[:, 0:2] - y_pred[:, 0:2]))
         MSE_phi = tf.reduce_sum(

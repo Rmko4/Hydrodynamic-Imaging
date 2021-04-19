@@ -25,7 +25,7 @@ def main():
     # sampling.plot(samples_y, "m")
 
     mlp = MLP(pfenv)
-    mlp.compile(physics_informed=True)
+    mlp.compile(physics_informed=False)
     # logs = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
 
     # tboard_callback = tf.keras.callbacks.TensorBoard(log_dir = logs,
