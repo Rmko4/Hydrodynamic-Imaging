@@ -1,11 +1,9 @@
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-from datetime import datetime
-from packaging import version
-import os
 import numpy as np
-from potential_flow import PotentialFlowEnv, SensorArray
+from potential_flow import PotentialFlowEnv, SensorArray, gather_p, gather_phi
+import potential_flow
 
 class RescaleProfile(keras.layers.Layer):
     def __init__(self, **kwargs):
@@ -55,27 +53,6 @@ class CubicRootNormalize(keras.layers.Layer):
     def compute_output_shape(self, input_shape):
         return input_shape
 
-
-def gather_p(x):
-    return tf.gather(x, [0, 1])
-
-def gather_phi(x):
-    return tf.gather(x, 2)
-
-def MED_p(y_true, y_pred):
-    L2_norm = tf.sqrt(tf.reduce_sum(
-        tf.square(gather_p(y_true) - gather_p(y_pred)), axis=-1))
-    return tf.reduce_mean(L2_norm)
-
-def MDE_phi(y_true, y_pred):
-    phi_e = gather_phi(y_true) - gather_p(y_pred)
-    abs_atan2 = tf.abs(tf.atan2(tf.sin(phi_e), tf.cos(phi_e)))
-    return 2 * tf.reduce_mean(abs_atan2)
-
-def MSE(y_true, y_pred):
-    return tf.reduce_mean(tf.square(y_true - y_pred))
-
-
 class MLP(keras.Sequential):
 
     def __init__(self, pfenv: PotentialFlowEnv):
@@ -106,8 +83,8 @@ class MLP(keras.Sequential):
             # MSE_y
             loss=self._MSE_normalized,
             # List of metrics to monitor
-            metrics=[MED_p, MDE_phi],
-            # run_eagerly=True
+            metrics=[potential_flow.MED_p, potential_flow.MDE_phi],
+            run_eagerly=False
         )
 
     def train_step(self, data):
@@ -152,32 +129,17 @@ class MLP(keras.Sequential):
         MSE_out = (MSE_p + MSE_phi) / (4. * N)
         return MSE_out
 
-    def _MSE_normalized_old(self, y_true, y_pred):
-        # tf.shape for dynamic shape of Tensor
-        N = tf.cast(tf.shape(y_true)[0], tf.float32)
-        #
-        MSE_p = self.D_2SQ * \
-            tf.reduce_sum(tf.square(y_true[:, 0:2] - y_pred[:, 0:2]))
-        MSE_phi = tf.reduce_sum(
-            tf.square(tf.cos(y_true[:, 2]) - tf.cos(y_pred[:, 2])))
-        MSE_phi += tf.reduce_sum(
-            tf.square(tf.sin(y_true[:, 2]) - tf.sin(y_pred[:, 2])))
-
-        MSE_out = (MSE_p + MSE_phi) / (4. * N)
-        return MSE_out
-
-
 def main():
     m = MLP(PotentialFlowEnv(sensor=SensorArray(8)))
 
     y_true = tf.constant([[1., 1., 3], [2., 3., 3.]])
     y_pred = tf.constant([[2., 3., 0.], [2., 3., 3.]])
 
-    print(MED_p(y_true, y_pred))
-    print(MDE_phi(y_true, y_pred))
-    print(MDE_phi(y_true, y_pred))
+    print(potential_flow.MED_p(y_true, y_pred))
+    print(potential_flow.MDE_phi(y_true, y_pred))
+    print(potential_flow.MDE_phi(y_true, y_pred))
 
-    print(MSE(y_true, y_pred))
+    print(potential_flow.MSE(y_true, y_pred))
     print(m._MSE_normalized(y_true, y_pred))
 
 

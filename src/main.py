@@ -21,7 +21,7 @@ def main():
     sensors = SensorArray(N_SENSORS, (-D_sensors, D_sensors))
     pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors, a_v, W_v)
 
-    samples_u, samples_y = pfenv.sample_sensor_data()
+    samples_u, samples_y = pfenv.sample_sensor_data(noise_stddev=1e-5)
     # sampling.plot(samples_y, "m")
 
     mlp = MLP(pfenv)
@@ -29,10 +29,11 @@ def main():
     # logs = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
 
     # tboard_callback = tf.keras.callbacks.TensorBoard(log_dir = logs,
-    #                                                 histogram_freq = 1, profile_batch="2,10")
+    #                                                 histogram_freq = 1, profile_batch="2,50")
     # , callbacks = [tboard_callback]
 
-    mlp.fit(samples_u, samples_y, batch_size=32, validation_split=0.2, epochs=10)
+    
+    mlp.fit(samples_u, samples_y, batch_size=32, validation_split=0.2, epochs=10000)
     a = np.array([samples_u[0]])
     # print(mlp.predict(a))
     # print(samples_y[0])

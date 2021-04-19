@@ -45,14 +45,18 @@ class PotentialFlowEnv:
     def forward_step(self, y_bar):
         s_bar = self.sensor()
         size = tf.size(s_bar)
+
         i = tf.constant(0)
-        c = lambda i: tf.less(i < size)
-        b = lambda i: (tf.add(i, 1), )
         ta = tf.TensorArray(y_bar.dtype, 2*size)
-        for i in tf.range(size):
+
+        def c(i, _): return tf.less(i, size)
+
+        def b(i, ta):
             v_x, v_y = self.v(s_bar[i], y_bar)
             ta = ta.write(i, v_x)
             ta = ta.write(size + i, v_y)
+            return (i + 1, ta)
+        _, ta = tf.while_loop(c, b, (i, ta))
         return ta.stack()
 
     def forward_step_old(self, y_bar):
@@ -65,8 +69,7 @@ class PotentialFlowEnv:
             ta = ta.write(size + i, v_y)
         return ta.stack()
 
-
-    @tf.function
+    @ tf.function
     def v(self, s, y_bar):
         b = y_bar[0]
         d = y_bar[1]
@@ -106,7 +109,7 @@ class PotentialFlowEnv:
     def rho(self, s, b, d):
         return (s - b) / d
 
-    def sample_sensor_data(self, min_distance=.1, k=30):
+    def sample_sensor_data(self, noise_stddev=0, min_distance=.1, k=30):
         if not self.domains:
             x = [-self.dimensions[0]/2, self.dimensions[0]/2]
             y = [self.y_offset, self.y_offset + self.dimensions[1]]
@@ -118,6 +121,9 @@ class PotentialFlowEnv:
         samples_y = tf.constant(samples_y, tf.float32)
 
         samples_u = self(samples_y)
+        gaus_noise = tf.random.normal(tf.shape(samples_u), 0, noise_stddev)
+        samples_u += gaus_noise
+
         self.samples = (samples_u, samples_y)
         return samples_u, samples_y
 
@@ -128,12 +134,34 @@ class PotentialFlowEnv:
             self.sensor = sensor
 
 
+def gather_p(x):
+    return tf.gather(x, indices=[0, 1], axis=1)
+
+def gather_phi(x):
+    return tf.gather(x, indices=2, axis=1)
+
+def MED_p(y_true, y_pred):
+    L2_norm = tf.sqrt(tf.reduce_sum(
+        tf.square(gather_p(y_true) - gather_p(y_pred)), axis=-1))
+    return tf.reduce_mean(L2_norm)
+
+def MDE_phi(y_true, y_pred):
+    phi_e = gather_phi(y_true) - gather_phi(y_pred)
+    abs_atan2 = tf.abs(tf.atan2(tf.sin(phi_e), tf.cos(phi_e)))
+    return 2 * tf.reduce_mean(abs_atan2)
+
+def MSE(y_true, y_pred):
+    return tf.reduce_mean(tf.square(y_true - y_pred))
+    
 def main():
     tf.config.run_functions_eagerly(True)
     pfenv = PotentialFlowEnv(sensor=SensorArray(8))
+    y_bar = tf.constant([0., 0.5, 1.5])
+    print(y_bar)
     print(pfenv(tf.constant([[0., 0.5, 1.5]])))
-    print(pfenv.v(tf.constant(0.), (tf.constant(.05),
-                                    tf.constant(.1), tf.constant(0.))))
+    print(pfenv.forward_step(y_bar))
+    print(pfenv.v(tf.constant(0.), (tf.constant(.5),
+                                    tf.constant(.5), tf.constant(0.))))
     print(pfenv.v(tf.constant(-.25), (tf.constant(.5),
                                       tf.constant(.5), tf.constant(0.))))
     pass
