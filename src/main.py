@@ -3,6 +3,7 @@ from potential_flow import PotentialFlowEnv, SensorArray, sampling
 from mlp import MLP
 from qm import QM
 import numpy as np
+from datetime import datetime
 
 import tensorflow as tf
 
@@ -25,6 +26,12 @@ def main():
 
     mlp = MLP(pfenv)
     mlp.compile(physics_informed=True)
+    # logs = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    # tboard_callback = tf.keras.callbacks.TensorBoard(log_dir = logs,
+    #                                                 histogram_freq = 1, profile_batch="2,10")
+    # , callbacks = [tboard_callback]
+
     mlp.fit(samples_u, samples_y, batch_size=32, validation_split=0.2, epochs=10)
     a = np.array([samples_u[0]])
     # print(mlp.predict(a))
