@@ -32,7 +32,7 @@ class PotentialFlowEnv:
     def __init__(self, dimensions=(1, .5), y_offset=0, sensor: SensorArray = None, a=.025, W=.25):
         self.dimensions = dimensions
         self.y_offset = y_offset
-        self.domains = None
+        self.sample_domains = None
         self.initSensor(sensor)
 
         self.a = tf.constant(a)
@@ -40,7 +40,7 @@ class PotentialFlowEnv:
         self.C_d = 0.5 * W * tf.pow(a, 3.)
 
     def __call__(self, y: tf.Tensor):
-        return tf.map_fn(self.forward_step, y)
+        return tf.vectorized_map(self.v_tf_vectorized, y)
 
     def forward_step(self, y_bar):
         s_bar = self.sensor()
@@ -80,7 +80,7 @@ class PotentialFlowEnv:
         c = self.C_d / tf.pow(d, 3.)
 
         rho_sq = tf.square(rho)
-        denum = tf.pow(1 + rho_sq, 2.)
+        denum = tf.pow(1 + rho_sq, 2.5)
 
         Psi_e = (2 * rho_sq - 1) / denum
         Psi_o = (-3 * rho) / denum
@@ -93,6 +93,53 @@ class PotentialFlowEnv:
         v_y = c * (Psi_o * cos_phi + Psi_n * sin_phi)
 
         return v_x, v_y
+
+    @ tf.function
+    def v_tf_vectorized(self, y_bar):
+        s = self.sensor()
+
+        b = y_bar[0]
+        d = y_bar[1]
+        phi = y_bar[2]
+
+        rho = (s - b) / d
+
+        c = self.C_d / tf.pow(d, 3.)
+
+        rho_sq = tf.square(rho)
+        denum = tf.pow(1 + rho_sq, 2.5)
+
+        Psi_e = (2 * rho_sq - 1) / denum
+        Psi_o = (-3 * rho) / denum
+        Psi_n = (2 - rho_sq) / denum
+
+        cos_phi = tf.cos(phi)
+        sin_phi = tf.sin(phi)
+
+        v_x = c * (Psi_e * cos_phi + Psi_o * sin_phi)
+        v_y = c * (Psi_o * cos_phi + Psi_n * sin_phi)
+
+        return tf.concat([v_x, v_y], 0)
+
+    def v_np(self, s, b, d, phi):
+        rho = (s - b) / d
+
+        c = self.C_d.numpy() / d**3
+
+        rho_sq = np.square(rho)
+        denum = np.power(1 + rho_sq, 2.5)
+
+        Psi_e = (2 * rho_sq - 1) / denum
+        Psi_o = (-3 * rho) / denum
+        Psi_n = (2 - rho_sq) / denum
+
+        cos_phi = np.cos(phi)
+        sin_phi = np.sin(phi)
+
+        v_x = c * (Psi_e * cos_phi + Psi_o * sin_phi)
+        v_y = c * (Psi_o * cos_phi + Psi_n * sin_phi)
+
+        return np.concatenate((v_x, v_y))
 
     def Psi_e(self, rho):
         rho_sq = tf.square(rho)
@@ -110,14 +157,14 @@ class PotentialFlowEnv:
         return (s - b) / d
 
     def sample_sensor_data(self, noise_stddev=0, min_distance=.1, k=30):
-        if not self.domains:
+        if not self.sample_domains:
             x = [-self.dimensions[0]/2, self.dimensions[0]/2]
             y = [self.y_offset, self.y_offset + self.dimensions[1]]
             phi = [0, max(self.dimensions)]
-            self.domains = np.array([x, y, phi])
+            self.sample_domains = np.array([x, y, phi])
         # Write to tensor array
-        samples_y = sampling.poisson_disk_sample(self.domains, min_distance, k)
-        samples_y[:, 2] = 2 * np.pi * samples_y[:, 2] / (self.domains[2, 1])
+        samples_y = sampling.poisson_disk_sample(self.sample_domains, min_distance, k)
+        samples_y[:, 2] = 2 * np.pi * samples_y[:, 2] / (self.sample_domains[2, 1])
         samples_y = tf.constant(samples_y, tf.float32)
 
         samples_u = self(samples_y)

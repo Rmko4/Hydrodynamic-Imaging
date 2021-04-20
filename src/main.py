@@ -22,8 +22,12 @@ def main():
     pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors, a_v, W_v)
 
     samples_u, samples_y = pfenv.sample_sensor_data(noise_stddev=1e-5)
+    print(pfenv(samples_y))
     qm = QM(pfenv)
-    qm.predict(samples_u.numpy())
+    print(qm.evaluate(samples_u, samples_y))
+
+
+
     # sampling.plot(samples_y, "m")
 
     # mlp = MLP(pfenv)
@@ -39,8 +43,6 @@ def main():
     # a = np.array([samples_u[0]])
     # print(mlp.predict(a))
     # print(samples_y[0])
-    # qm = QM(pfenv)
-    # print(qm.predict(a))
 
 
 if __name__ == "__main__":
