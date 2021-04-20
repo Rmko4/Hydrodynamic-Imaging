@@ -3,7 +3,7 @@
 import tensorflow as tf
 import numpy as np
 import sampling
-
+import matplotlib.pyplot as plt
 
 class SensorArray:
     def __init__(self, n_sensors=1, range=(-.1, .1), s_bar=None):
@@ -155,11 +155,21 @@ def MSE(y_true, y_pred):
     
 def main():
     tf.config.run_functions_eagerly(True)
-    pfenv = PotentialFlowEnv(sensor=SensorArray(8))
-    y_bar = tf.constant([0., 0.5, 1.5])
+    pfenv = PotentialFlowEnv(sensor=SensorArray(1000, (-0.5, 0.5)))
+    y_bar = tf.constant([.5, .5, 2.])
+
     print(y_bar)
-    print(pfenv(tf.constant([[0., 0.5, 1.5]])))
-    print(pfenv.forward_step(y_bar))
+    print(pfenv(tf.constant([[.5, .5, 2.]])))
+
+    result = pfenv.forward_step(y_bar)
+
+    u_xy = np.split(result, 2)
+    t = np.linspace(-0.5, 0.5, 1000)
+
+    plt.plot(t, u_xy[0])
+    plt.plot(t, u_xy[1])
+    plt.show()
+
     print(pfenv.v(tf.constant(0.), (tf.constant(.5),
                                     tf.constant(.5), tf.constant(0.))))
     print(pfenv.v(tf.constant(-.25), (tf.constant(.5),
