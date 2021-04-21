@@ -4,6 +4,7 @@ import tensorflow as tf
 import numpy as np
 import sampling
 import matplotlib.pyplot as plt
+import poisson_disc
 
 class SensorArray:
     def __init__(self, n_sensors=1, range=(-.1, .1), s_bar=None):
@@ -32,7 +33,10 @@ class PotentialFlowEnv:
     def __init__(self, dimensions=(1, .5), y_offset=0, sensor: SensorArray = None, a=.025, W=.25):
         self.dimensions = dimensions
         self.y_offset = y_offset
-        self.sample_domains = None
+        x = [-self.dimensions[0]/2, self.dimensions[0]/2]
+        y = [self.y_offset, self.y_offset + self.dimensions[1]]
+        phi = [0, max(self.dimensions)]
+        self.sample_domains = np.array([x, y, phi])
         self.initSensor(sensor)
 
         self.a = tf.constant(a)
@@ -121,7 +125,11 @@ class PotentialFlowEnv:
 
         return tf.concat([v_x, v_y], 0)
 
-    def v_np(self, s, b, d, phi):
+    def v_np(self, s, b, d, phi, y_bar=None):
+        if y_bar is not None:
+            b = y_bar[0]
+            d = y_bar[1]
+            phi = y_bar[2]
         rho = (s - b) / d
 
         c = self.C_d.numpy() / d**3
@@ -157,13 +165,8 @@ class PotentialFlowEnv:
         return (s - b) / d
 
     def sample_sensor_data(self, noise_stddev=0, min_distance=.1, k=30):
-        if not self.sample_domains:
-            x = [-self.dimensions[0]/2, self.dimensions[0]/2]
-            y = [self.y_offset, self.y_offset + self.dimensions[1]]
-            phi = [0, max(self.dimensions)]
-            self.sample_domains = np.array([x, y, phi])
         # Write to tensor array
-        samples_y = sampling.poisson_disk_sample(self.sample_domains, min_distance, k)
+        samples_y = sampling.poisson_disc_sample(self.sample_domains, min_distance, k)
         samples_y[:, 2] = 2 * np.pi * samples_y[:, 2] / (self.sample_domains[2, 1])
         samples_y = tf.constant(samples_y, tf.float32)
 
@@ -172,7 +175,7 @@ class PotentialFlowEnv:
         samples_u += gaus_noise
 
         self.samples = (samples_u, samples_y)
-        return samples_u, samples_y
+        return samples_u.numpy(), samples_y.numpy()
 
     def initSensor(self, sensor):
         if sensor is None:

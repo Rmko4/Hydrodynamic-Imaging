@@ -78,7 +78,7 @@ class MLP(keras.Sequential):
         self.PINN_loss = keras.losses.MeanSquaredError()
 
         super(MLP, self).compile(
-            optimizer=keras.optimizers.Adam(),  # Optimizer
+            optimizer=keras.optimizers.Adam(learning_rate=0.0001),  # Optimizer
             # Loss function to minimize
             # MSE_y
             loss=self._MSE_normalized,

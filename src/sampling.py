@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from sklearn.metrics import pairwise_distances
 
 rng = np.random.default_rng()
 
@@ -25,7 +26,7 @@ def uniform_cube(domains):
     return np.apply_along_axis(random_uniform, 1, domains)
 
 
-def poisson_disk_sample(domains=np.array([[0, 1.0], [0, 1.0]]), r=0.05, k=30):
+def poisson_disc_sample(domains=np.array([[0, 1.0], [0, 1.0]]), r=0.05, k=30):
     n = domains.shape[0]
     cell_size = r / np.sqrt(n)
     r_sq = r * r
@@ -54,7 +55,7 @@ def poisson_disk_sample(domains=np.array([[0, 1.0], [0, 1.0]]), r=0.05, k=30):
         iter = []
         for i in range(n):
             iter.append(slice(grid_min[i], grid_max[i]))
-        sample_i = np.array(grid[tuple(iter)]).flatten()
+        sample_i = grid[tuple(iter)].flatten()
         sample_i = sample_i[sample_i != -1]
 
         present_samples = np.take(samples, sample_i, axis=0)
@@ -76,6 +77,7 @@ def poisson_disk_sample(domains=np.array([[0, 1.0], [0, 1.0]]), r=0.05, k=30):
             if in_domain(point) and not in_neighbourhood(point):
                 new_point = True
                 add_sample(point)
+                break
         if not new_point:
             active_list.pop(sel_i)
 
@@ -102,9 +104,20 @@ def plot(X, axis_unit = "m"):
     plt.show()
 
 
+def print_sample_metrics(samples, feature_subsets=None):
+    print_mean_min_distance(samples)
+    for lb, ub in feature_subsets:
+        print_mean_min_distance(samples[:, lb:ub])
+
+def print_mean_min_distance(samples):
+    pwd = pairwise_distances(samples)
+    np.fill_diagonal(pwd, np.inf)
+    pwd_min = pwd.min(0)
+    print(np.mean(pwd.min(0)))
+
 def main():
-    samples = poisson_disk_sample()
-    print(samples.size)
+    samples = poisson_disc_sample()
+    print(len(samples))
     plot(samples)
     pass
 

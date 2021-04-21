@@ -7,7 +7,7 @@ from scipy.optimize import curve_fit
 
 
 class QM:
-    def __init__(self, pfenv: PotentialFlowEnv, optimization_iter=4):
+    def __init__(self, pfenv: PotentialFlowEnv, optimization_iter=5):
         self.pfenv = pfenv
         self.s_bar = pfenv.sensor().numpy()
         self.optimization_iter = optimization_iter
@@ -79,15 +79,14 @@ class QM:
         p0 = [b, d, phi]
         y_bar = self.curve_fit_optimize(p0, u_bar, quad)
 
-        return p0
+        return y_bar
 
     def curve_fit_optimize(self, p0, u_bar, quad):
         dmn = self.pfenv.sample_domains
         bounds = ([dmn[0, 0], dmn[1, 0], 0], [dmn[0, 1], dmn[1, 1], 2 * np.pi])
         p_i = p0
         for _ in range(self.optimization_iter):
-            p_i, _ = curve_fit(self.psi_quad_env, self.s_bar, quad, p_i, bounds=bounds)
-            #, diff_step=1e-3, xtol=1e-3
+            p_i, _ = curve_fit(self.psi_quad_env, self.s_bar, quad, p_i, bounds=bounds, diff_step=1e-3, xtol=1e-3)
             p_i[2] = self.phi_calc(u_bar, p_i[0], p_i[1])
         return p_i
         
@@ -104,8 +103,8 @@ class QM:
         samples_u = samples_u.numpy()
         pred_y = tf.convert_to_tensor(
             self.predict(samples_u), dtype=tf.float32)
-        print(pred_y[0])
-        print(samples_y[0])
+        print(pred_y)
+        print(samples_y)
         p_eval = MED_p(samples_y, pred_y)
         phi_eval = MDE_phi(samples_y, pred_y)
         return p_eval, phi_eval
@@ -130,7 +129,9 @@ def main():
 
     result = pfenv.forward_step(y_bar)
     qm = QM(pfenv)
-    # qm.phi_calc(np.split(result, 2), .5, .5)
+    print(qm.curve_fit_optimize(y_bar, result, qm.psi_quad(result)))
+
+    # qm.phi_calc(result, .5, .5)
 
     samples_u, samples_y = pfenv.sample_sensor_data(noise_stddev=1e-5)
     # print(qm.psi_quad_env(pfenv.sensor().numpy(), samples_y[0][0].numpy(
