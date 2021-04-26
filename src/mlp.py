@@ -67,7 +67,7 @@ class MLP(keras.Sequential):
         # Make layer that scales the u_x_bar and u_y_bar separately on perhaps current max* or overal max.
 
         # self.add(layers.experimental.preprocessing.Rescaling(scale=scale, input_shape=input_shape))
-        self.add(layers.Dense(100, activation="sigmoid"))
+        self.add(layers.Dense(500, activation="sigmoid"))
         self.add(layers.Dense(pfenv.Y_BAR_SIZE))
         # Either transform and wrap phi. Or use special loss function.
         self.summary()
@@ -78,12 +78,12 @@ class MLP(keras.Sequential):
         self.PINN_loss = keras.losses.MeanSquaredError()
 
         super(MLP, self).compile(
-            optimizer=keras.optimizers.Adam(learning_rate=0.0001),  # Optimizer
+            optimizer=keras.optimizers.Adam(),  # Optimizer
             # Loss function to minimize
             # MSE_y
             loss=self._MSE_normalized,
             # List of metrics to monitor
-            metrics=[potential_flow.MED_p, potential_flow.MDE_phi],
+            metrics=[potential_flow.ME_p, potential_flow.ME_phi, potential_flow.ME_y(self.pfenv)],
             run_eagerly=False
         )
 
@@ -135,9 +135,9 @@ def main():
     y_true = tf.constant([[1., 1., 3], [2., 3., 3.]])
     y_pred = tf.constant([[2., 3., 0.], [2., 3., 3.]])
 
-    print(potential_flow.MED_p(y_true, y_pred))
-    print(potential_flow.MDE_phi(y_true, y_pred))
-    print(potential_flow.MDE_phi(y_true, y_pred))
+    print(potential_flow.ME_p(y_true, y_pred))
+    print(potential_flow.ME_phi(y_true, y_pred))
+    print(potential_flow.ME_phi(y_true, y_pred))
 
     print(potential_flow.MSE(y_true, y_pred))
     print(m._MSE_normalized(y_true, y_pred))

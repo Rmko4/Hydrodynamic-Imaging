@@ -6,6 +6,7 @@ import sampling
 import matplotlib.pyplot as plt
 import poisson_disc
 
+
 class SensorArray:
     def __init__(self, n_sensors=1, range=(-.1, .1), s_bar=None):
         if s_bar is None:
@@ -45,33 +46,6 @@ class PotentialFlowEnv:
 
     def __call__(self, y: tf.Tensor):
         return tf.vectorized_map(self.v_tf_vectorized, y)
-
-    def forward_step(self, y_bar):
-        s_bar = self.sensor()
-        size = tf.size(s_bar)
-
-        i = tf.constant(0)
-        ta = tf.TensorArray(y_bar.dtype, 2*size)
-
-        def c(i, _): return tf.less(i, size)
-
-        def b(i, ta):
-            v_x, v_y = self.v(s_bar[i], y_bar)
-            ta = ta.write(i, v_x)
-            ta = ta.write(size + i, v_y)
-            return (i + 1, ta)
-        _, ta = tf.while_loop(c, b, (i, ta))
-        return ta.stack()
-
-    def forward_step_old(self, y_bar):
-        s_bar = self.sensor()
-        size = tf.size(s_bar)
-        ta = tf.TensorArray(y_bar.dtype, 2*size)
-        for i in tf.range(size):
-            v_x, v_y = self.v(s_bar[i], y_bar)
-            ta = ta.write(i, v_x)
-            ta = ta.write(size + i, v_y)
-        return ta.stack()
 
     @ tf.function
     def v(self, s, y_bar):
@@ -164,10 +138,12 @@ class PotentialFlowEnv:
     def rho(self, s, b, d):
         return (s - b) / d
 
-    def sample_sensor_data(self, noise_stddev=0, min_distance=.1, k=30):
+    def sample_pairs(self, noise_stddev=0, min_distance=.1, k=30):
         # Write to tensor array
-        samples_y = sampling.poisson_disc_sample(self.sample_domains, min_distance, k)
-        samples_y[:, 2] = 2 * np.pi * samples_y[:, 2] / (self.sample_domains[2, 1])
+        samples_y = sampling.poisson_disc_sample(
+            self.sample_domains, min_distance, k)
+        samples_y[:, 2] = 2 * np.pi * \
+            samples_y[:, 2] / (self.sample_domains[2, 1])
         samples_y = tf.constant(samples_y, tf.float32)
 
         samples_u = self(samples_y)
@@ -177,6 +153,17 @@ class PotentialFlowEnv:
         self.samples = (samples_u, samples_y)
         return samples_u.numpy(), samples_y.numpy()
 
+    def sample_sensor_data(self, samples_y, sensor: SensorArray = None, noise_stddev=0):
+        if sensor is not None:
+            self.sensor = sensor
+
+        samples_u = self(samples_y)
+        # sampling.rng.normal(0, noise_stddev, np.shape(samples_u))
+        gaus_noise = tf.random.normal(tf.shape(samples_u), 0, noise_stddev)
+        samples_u += gaus_noise
+
+        return samples_u.numpy()
+
     def initSensor(self, sensor):
         if sensor is None:
             self.sensor = SensorArray()
@@ -185,26 +172,56 @@ class PotentialFlowEnv:
 
 
 def gather_p(x):
-    return tf.gather(x, indices=[0, 1], axis=1)
+    return tf.gather(x, indices=[0, 1], axis=-1)
+
 
 def gather_phi(x):
-    return tf.gather(x, indices=2, axis=1)
+    return tf.gather(x, indices=2, axis=-1)
 
-def MED_p(y_true, y_pred):
-    L2_norm = tf.sqrt(tf.reduce_sum(
-        tf.square(gather_p(y_true) - gather_p(y_pred)), axis=-1))
-    return tf.reduce_mean(L2_norm)
 
-def MDE_phi(y_true, y_pred):
+def ME_p(y_true, y_pred):
+    return tf.reduce_mean(E_p(y_true, y_pred))
+
+
+def ME_phi(y_true, y_pred):
+    return tf.reduce_mean(E_phi(y_true, y_pred))
+
+
+def ME_y(pfenv: PotentialFlowEnv):
+    def ME_y(y_true, y_pred):
+        return ME_p(y_true, y_pred)/(2 * max(pfenv.dimensions)) + ME_phi(y_true, y_pred)/(2 * np.pi)
+    return ME_y
+
+
+def E_p(y_true, y_pred):
+    return tf.sqrt(tf.reduce_sum(tf.square(gather_p(y_true) - gather_p(y_pred)), axis=-1))
+
+
+def E_phi(y_true, y_pred):
     phi_e = gather_phi(y_true) - gather_phi(y_pred)
-    abs_atan2 = tf.abs(tf.atan2(tf.sin(phi_e), tf.cos(phi_e)))
-    return 2 * tf.reduce_mean(abs_atan2)
+    return tf.abs(tf.atan2(tf.sin(phi_e), tf.cos(phi_e)))
+
 
 def MSE(y_true, y_pred):
     return tf.reduce_mean(tf.square(y_true - y_pred))
-    
+
+
+def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval):
+    plt.tricontour(y_bar[:, 0], y_bar[:, 1], p_eval, linewidths=0.5,
+                   colors='k', levels=[0.0, 0.01, 0.03, 0.05, 0.1])
+    cntr = plt.tricontourf(y_bar[:, 0], y_bar[:, 1], p_eval, levels=[
+                           0.0, 0.01, 0.03, 0.05, 0.1])
+    plt.colorbar(cntr)
+    s_bar = pfenv.sensor()
+    plt.scatter(s_bar, np.zeros((len(s_bar), )))
+    plt.show()
+
+
 def main():
     tf.config.run_functions_eagerly(True)
+
+    print(ME_phi(tf.constant([0., 0., -4.]), tf.constant([0., 0., 0.])))
+
     pfenv = PotentialFlowEnv(sensor=SensorArray(1000, (-0.5, 0.5)))
     y_bar = tf.constant([.5, .5, 2.])
 
