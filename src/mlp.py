@@ -5,7 +5,7 @@ from kerastuner import HyperModel
 from kerastuner.engine.tuner_utils import TunerCallback
 import kerastuner as kt
 import numpy as np
-from potential_flow import PotentialFlowEnv, SensorArray, gather_p, gather_phi
+from potential_flow import ME_phi, ME_p, E_p, E_phi, PotentialFlowEnv, SensorArray, gather_p, gather_phi
 import potential_flow
 from sklearn.utils import shuffle as sk_shuffle
 import copy
@@ -173,6 +173,16 @@ class MLP(keras.Sequential):
 
         MSE_out = (MSE_p + MSE_phi) / (4. * N)
         return MSE_out
+    
+    def evaluate_full(self, samples_u, samples_y):
+        pred_y = self.predict(samples_u)
+        pred_y = tf.convert_to_tensor(pred_y, dtype=tf.float32)
+        p_eval = E_p(samples_y, pred_y)
+        phi_eval = E_phi(samples_y, pred_y)
+        print(ME_p(samples_y, pred_y))
+        print(ME_phi(samples_y, pred_y))
+        return p_eval, phi_eval
+
 
 
 class MLPHyperModel(HyperModel):
@@ -182,12 +192,12 @@ class MLPHyperModel(HyperModel):
         self.alpha = alpha
 
     def build(self, hp):
-        n_layers = hp.Int("num_hidden_layers", min_value=1, max_value=3, default=1)
+        n_layers = hp.Int("num_hidden_layers", min_value=1, max_value=5, default=1)
         units = []
         for i in range(n_layers):
             units.append(hp.Int("units_" + str(i),
                                 min_value=32, max_value=1024, step=32, default=32))
-        learning_rate = hp.Choice("learning_rate", [1e-2, 1e-3, 1e-4])
+        learning_rate = hp.Float("learning_rate", 1e-4, 1e-2, sampling='log')
 
         mlp = MLP(self.pfenv, n_layers, units)
         mlp.compile(learning_rate, self.physics_informed, self.alpha)
@@ -197,9 +207,9 @@ class MLPHyperModel(HyperModel):
 class MLPTuner(kt.tuners.BayesianOptimization):
     def run_trial(self, trial, *fit_args, **fit_kwargs):
         hp = trial.hyperparameters
-        batch_size = hp.Int("batch_size", min_value=32, max_value=128, step=32, default=32)
+        batch_size = hp.Int("batch_size", min_value=32, max_value=256, step=32, default=32)
         fit_kwargs['batch_size'] = batch_size
-        fit_kwargs['callbacks']= [tf.keras.callbacks.EarlyStopping('val_ME_y', patience=20)]
+        fit_kwargs['callbacks']= [tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)]
 
         super(MLPTuner, self).run_trial(trial, *fit_args, **fit_kwargs)
 
