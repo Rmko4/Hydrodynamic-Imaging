@@ -1,9 +1,14 @@
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
+from kerastuner import HyperModel
+from kerastuner.engine.tuner_utils import TunerCallback
+import kerastuner as kt
 import numpy as np
 from potential_flow import PotentialFlowEnv, SensorArray, gather_p, gather_phi
 import potential_flow
+from sklearn.utils import shuffle as sk_shuffle
+import copy
 
 class RescaleProfile(keras.layers.Layer):
     def __init__(self, **kwargs):
@@ -23,6 +28,7 @@ class RescaleProfile(keras.layers.Layer):
 
     def compute_output_shape(self, input_shape):
         return input_shape
+
 
 class CubicRootNormalize(keras.layers.Layer):
     def __init__(self, pfenv: PotentialFlowEnv, **kwargs):
@@ -53,9 +59,10 @@ class CubicRootNormalize(keras.layers.Layer):
     def compute_output_shape(self, input_shape):
         return input_shape
 
+
 class MLP(keras.Sequential):
 
-    def __init__(self, pfenv: PotentialFlowEnv):
+    def __init__(self, pfenv: PotentialFlowEnv, n_layers=1, units=[256]):
         super(MLP, self).__init__()
         self.pfenv = pfenv
         s_bar = pfenv.sensor()
@@ -67,47 +74,85 @@ class MLP(keras.Sequential):
         # Make layer that scales the u_x_bar and u_y_bar separately on perhaps current max* or overal max.
 
         # self.add(layers.experimental.preprocessing.Rescaling(scale=scale, input_shape=input_shape))
-        self.add(layers.Dense(500, activation="sigmoid"))
+
+        for i in range(n_layers):
+            self.add(layers.Dense(units[i], activation="sigmoid"))
         self.add(layers.Dense(pfenv.Y_BAR_SIZE))
         # Either transform and wrap phi. Or use special loss function.
         self.summary()
 
-    def compile(self, physics_informed=False, alpha=1):
+    def compile(self, learning_rate=1e-3, physics_informed=False, alpha=1):
         self.alpha = alpha
         self.physics_informed = physics_informed
         self.PINN_loss = keras.losses.MeanSquaredError()
 
         super(MLP, self).compile(
-            optimizer=keras.optimizers.Adam(),  # Optimizer
+            optimizer=keras.optimizers.Adam(
+                learning_rate=learning_rate),  # Optimizer
             # Loss function to minimize
             # MSE_y
             loss=self._MSE_normalized,
             # List of metrics to monitor
-            metrics=[potential_flow.ME_p, potential_flow.ME_phi, potential_flow.ME_y(self.pfenv)],
+            metrics=[potential_flow.ME_p, potential_flow.ME_phi,
+                     potential_flow.ME_y(self.pfenv)],
             run_eagerly=False
         )
+
+    def fit(self,
+            x=None,
+            y=None,
+            batch_size=None,
+            epochs=1,
+            verbose='auto',
+            callbacks=None,
+            validation_split=0.,
+            validation_data=None,
+            shuffle=True,
+            class_weight=None,
+            sample_weight=None,
+            initial_epoch=0,
+            steps_per_epoch=None,
+            validation_steps=None,
+            validation_batch_size=None,
+            validation_freq=1,
+            max_queue_size=10,
+            workers=1,
+            use_multiprocessing=False):
+        x, y = sk_shuffle(x, y)
+        return super().fit(x = x, y = y, batch_size = batch_size, epochs = epochs,
+                           verbose = verbose, callbacks = callbacks,
+                           validation_split = validation_split,
+                           validation_data = validation_data, shuffle = shuffle,
+                           class_weight = class_weight, sample_weight = sample_weight,
+                           initial_epoch = initial_epoch,
+                           steps_per_epoch = steps_per_epoch,
+                           validation_steps = validation_steps,
+                           validation_batch_size = validation_batch_size,
+                           validation_freq = validation_freq,
+                           max_queue_size = max_queue_size, workers = workers,
+                           use_multiprocessing = use_multiprocessing)
 
     def train_step(self, data):
         u, y = data
 
         with tf.GradientTape() as tape:
-            y_pred = self(u, training=True)  # Forward pass of the MLP
+            y_pred=self(u, training = True)  # Forward pass of the MLP
             # Compute the loss values
             # (the loss function is configured in `compile()`)
-            loss_y = self.compiled_loss(y, y_pred)
+            loss_y=self.compiled_loss(y, y_pred)
 
             if self.physics_informed:
                 # Forward pass of the potential flow model.
-                u_pred = self.pfenv(y_pred)
-                loss_u = self.PINN_loss(u, u_pred)
+                u_pred=self.pfenv(y_pred)
+                loss_u=self.PINN_loss(u, u_pred)
                 # Summing losses for single gradient.
-                loss = (loss_y + self.alpha * loss_u) / (1 + self.alpha)
+                loss=(loss_y + self.alpha * loss_u) / (1 + self.alpha)
             else:
-                loss = loss_y
+                loss=loss_y
 
         # Compute gradients
-        trainable_vars = self.trainable_variables
-        gradients = tape.gradient(loss, trainable_vars)
+        trainable_vars=self.trainable_variables
+        gradients=tape.gradient(loss, trainable_vars)
 
         # Update weights
         self.optimizer.apply_gradients(zip(gradients, trainable_vars))
@@ -118,16 +163,46 @@ class MLP(keras.Sequential):
 
     def _MSE_normalized(self, y_true, y_pred):
         # tf.shape for dynamic shape of Tensor
-        N = tf.cast(tf.shape(y_true)[0], tf.float32)
-        MSE_p = self.D_2SQ * \
+        N=tf.cast(tf.shape(y_true)[0], tf.float32)
+        MSE_p=self.D_2SQ * \
             tf.reduce_sum(tf.square(gather_p(y_true) - gather_p(y_pred)))
-        MSE_phi = tf.reduce_sum(
+        MSE_phi=tf.reduce_sum(
             tf.square(tf.cos(gather_phi(y_true)) - tf.cos(gather_phi(y_pred))))
         MSE_phi += tf.reduce_sum(
             tf.square(tf.sin(gather_phi(y_true)) - tf.sin(gather_phi(y_pred))))
 
         MSE_out = (MSE_p + MSE_phi) / (4. * N)
         return MSE_out
+
+
+class MLPHyperModel(HyperModel):
+    def __init__(self, pfenv, physics_informed=False, alpha=1):
+        self.pfenv = pfenv
+        self.physics_informed = physics_informed
+        self.alpha = alpha
+
+    def build(self, hp):
+        n_layers = hp.Int("num_hidden_layers", min_value=1, max_value=3, default=1)
+        units = []
+        for i in range(n_layers):
+            units.append(hp.Int("units_" + str(i),
+                                min_value=32, max_value=1024, step=32, default=32))
+        learning_rate = hp.Choice("learning_rate", [1e-2, 1e-3, 1e-4])
+
+        mlp = MLP(self.pfenv, n_layers, units)
+        mlp.compile(learning_rate, self.physics_informed, self.alpha)
+
+        return mlp
+
+class MLPTuner(kt.tuners.BayesianOptimization):
+    def run_trial(self, trial, *fit_args, **fit_kwargs):
+        hp = trial.hyperparameters
+        batch_size = hp.Int("batch_size", min_value=32, max_value=128, step=32, default=32)
+        fit_kwargs['batch_size'] = batch_size
+        fit_kwargs['callbacks']= [tf.keras.callbacks.EarlyStopping('val_ME_y', patience=20)]
+
+        super(MLPTuner, self).run_trial(trial, *fit_args, **fit_kwargs)
+
 
 def main():
     m = MLP(PotentialFlowEnv(sensor=SensorArray(8)))
