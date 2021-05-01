@@ -194,7 +194,7 @@ def ME_y(pfenv: PotentialFlowEnv):
 
 
 def E_p(y_true, y_pred):
-    return tf.sqrt(tf.reduce_sum(tf.square(gather_p(y_true) - gather_p(y_pred)), axis=-1))
+    return tf.norm(gather_p(y_true) - gather_p(y_pred), axis=-1)
 
 
 def E_phi(y_true, y_pred):
@@ -209,15 +209,16 @@ def MSE(y_true, y_pred):
 def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval):
     data = [p_eval, phi_eval/np.pi]
     titles = [r"$\mathrm{E}_\mathbf{p}$", r"$\mathrm{E}_\phi/\pi$"]
-    fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=True, figsize=(9,9))
-    
+    fig, axes = plt.subplots(
+        nrows=2, ncols=1, sharex=True, sharey=True, figsize=(9, 9))
+
     axes[1].set_xlabel("x")
 
     for i in range(2):
         axes[i].tricontour(y_bar[:, 0], y_bar[:, 1], data[i], linewidths=0.5,
-                    colors='k', levels=[0.0, 0.01, 0.03, 0.05, 0.1])
+                           colors='k', levels=[0.0, 0.01, 0.03, 0.05, 0.1])
         cntr = axes[i].tricontourf(y_bar[:, 0], y_bar[:, 1], data[i], levels=[
-                            0.0, 0.01, 0.03, 0.05, 0.1])
+            0.0, 0.01, 0.03, 0.05, 0.1])
         axes[i].set_title(titles[i])
         axes[i].set_ylabel("y")
         axes[i].set_aspect("equal")
@@ -231,6 +232,7 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval):
 
     fig.suptitle("Multilayer Perceptron - Noise 1e-5")
     plt.show()
+
 
 def main():
     tf.config.run_functions_eagerly(True)

@@ -83,7 +83,7 @@ def main():
     # plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval)
 
 
-    mlp = MLP(pfenv, 3, units=[512, 160, 32])
+    mlp = MLP(pfenv, 3, units=[512, 160, 32], physics_informed_phi=True)
     mlp.compile(alpha=0.001, learning_rate=0.001)
     logs = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
 

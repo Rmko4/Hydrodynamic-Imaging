@@ -9,6 +9,7 @@ from potential_flow import ME_phi, ME_p, E_p, E_phi, ME_y, PotentialFlowEnv, Sen
 import potential_flow
 from sklearn.utils import shuffle as sk_shuffle
 
+
 class RescaleProfile(keras.layers.Layer):
     def __init__(self, **kwargs):
         super(RescaleProfile, self).__init__(**kwargs)
@@ -58,19 +59,62 @@ class CubicRootNormalize(keras.layers.Layer):
     def compute_output_shape(self, input_shape):
         return input_shape
 
+class DirectionMap(keras.layers.Layer):
+    def __init__(self, pfenv: PotentialFlowEnv, **kwargs):
+        super(CubicRootNormalize, self).__init__(**kwargs)
+        self.pfenv = pfenv
+
+    def _phi_calc(self, u, p):
+        s = self.pfenv.sensor()
+
+        def phi_calc_inner(u_p_pair):
+            u, p = u_p_pair
+            u_xy = tf.split(u, 2, axis=-1)
+            rho = self.pfenv.rho(s, p[0], p[1])
+
+            Psi_e = self.pfenv.Psi_e(rho)
+            Psi_n = self.pfenv.Psi_n(rho)
+            Psi_o = self.pfenv.Psi_o(rho)
+
+            cos_phi = tf.reduce_mean(u_xy[0] * Psi_n - u_xy[1] * Psi_o)
+            sin_phi = tf.reduce_mean(u_xy[1] * Psi_e - u_xy[0] * Psi_o)
+
+            phi = tf.constant(np.pi) + tf.atan2(sin_phi, cos_phi)
+            return phi
+
+        return tf.vectorized_map(phi_calc_inner, (u, p))
+
+    def call(self, inputs):
+        phi = self.phi_calc(u, y_pred)
+        y_pred = tf.concat([y_pred, tf.reshape(phi, [-1, 1])], axis=-1)
+        u_x, u_y = tf.split(inputs, 2, axis=1)
+        scale = np.math.pow(self.pfenv.y_offset, 3) / \
+            (self.pfenv.W * np.math.pow(self.pfenv.a, 3))
+
+        u_x = self._normalize(u_x, 0.5*scale)
+        u_y = self._normalize(u_y, scale)
+
+        outputs = tf.concat([u_x, u_y], 1)
+        return outputs
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
+
 
 class MLP(keras.Sequential):
 
-    def __init__(self, pfenv: PotentialFlowEnv, n_layers=1, units=[256], physics_informed=False):
+    def __init__(self, pfenv: PotentialFlowEnv, n_layers=1, units=[256], physics_informed_phi=False, print_summary=True):
         super(MLP, self).__init__()
-        
+
         self.pfenv = pfenv
         s_bar = pfenv.sensor()
-        self.physics_informed = physics_informed
+        self.physics_informed_phi = physics_informed_phi
+
+        self.p_loss = self._MAE_normalized if not physics_informed_phi else self._MAE_p_normalized
 
         input_shape = (2*tf.size(s_bar),)
         # Physics informed only output p = (b, d)
-        n_output_units = pfenv.Y_BAR_SIZE if not physics_informed else pfenv.Y_BAR_SIZE - 1
+        n_output_units = pfenv.Y_BAR_SIZE if not physics_informed_phi else pfenv.Y_BAR_SIZE - 1
 
         self.D_2SQ = 1/self.pfenv.dimensions[1]
         self.add(layers.InputLayer(input_shape=input_shape))
@@ -81,12 +125,14 @@ class MLP(keras.Sequential):
         # self.add(layers.experimental.preprocessing.Rescaling(scale=scale, input_shape=input_shape))
 
         for i in range(n_layers):
-            activation = "tanh"
+            # Different activation functions.
             self.add(layers.Dense(units[i], activation="relu"))
-        
+
         self.add(layers.Dense(n_output_units))
         # Either transform and wrap phi. Or use special loss function.
-        self.summary()
+
+        if print_summary:
+            self.summary()
 
     def compile(self, learning_rate=1e-3, alpha=1):
         self.alpha = alpha
@@ -98,7 +144,7 @@ class MLP(keras.Sequential):
                 learning_rate=learning_rate),  # Optimizer
             # Loss function to minimize
             # MSE_y
-            loss=self._MAE_normalized,
+            loss=self.p_loss,
             # List of metrics to monitor
             metrics=[potential_flow.ME_p, potential_flow.ME_phi,
                      potential_flow.ME_y(self.pfenv)],
@@ -126,41 +172,49 @@ class MLP(keras.Sequential):
             workers=1,
             use_multiprocessing=False):
         x, y = sk_shuffle(x, y)
-        return super().fit(x = x, y = y, batch_size = batch_size, epochs = epochs,
-                           verbose = verbose, callbacks = callbacks,
-                           validation_split = validation_split,
-                           validation_data = validation_data, shuffle = shuffle,
-                           class_weight = class_weight, sample_weight = sample_weight,
-                           initial_epoch = initial_epoch,
-                           steps_per_epoch = steps_per_epoch,
-                           validation_steps = validation_steps,
-                           validation_batch_size = validation_batch_size,
-                           validation_freq = validation_freq,
-                           max_queue_size = max_queue_size, workers = workers,
-                           use_multiprocessing = use_multiprocessing)
+        return super().fit(x=x, y=y, batch_size=batch_size, epochs=epochs,
+                           verbose=verbose, callbacks=callbacks,
+                           validation_split=validation_split,
+                           validation_data=validation_data, shuffle=shuffle,
+                           class_weight=class_weight, sample_weight=sample_weight,
+                           initial_epoch=initial_epoch,
+                           steps_per_epoch=steps_per_epoch,
+                           validation_steps=validation_steps,
+                           validation_batch_size=validation_batch_size,
+                           validation_freq=validation_freq,
+                           max_queue_size=max_queue_size, workers=workers,
+                           use_multiprocessing=use_multiprocessing)
 
     def train_step(self, data):
         u, y = data
 
         with tf.GradientTape() as tape:
-            y_pred=self(u, training = True)  # Forward pass of the MLP
+            y_pred = self(u, training=True)  # Forward pass of the MLP
+            # y_pred will only yield b and d when PINN mode.
+
             # Compute the loss values
             # (the loss function is configured in `compile()`)
-            loss_y=self.compiled_loss(y, y_pred)
-            # tf.print(loss_y)
-            if self.physics_informed:
-                # Forward pass of the potential flow model.
-                u_pred=self.pfenv(y_pred)
-                loss_u=self._PINN_MSE(u, u_pred)
-                # Summing losses for single gradient.
-                # tf.print(loss_u)
-                loss=(loss_y + self.alpha * loss_u) / (1 + self.alpha)
-            else:
-                loss=loss_y
+            loss_y = self.compiled_loss(y, y_pred)
 
+            if self.physics_informed_phi:
+                phi = self.phi_calc(u, y_pred)
+                y_pred = tf.concat([y_pred, tf.reshape(phi, [-1, 1])], axis=-1)
+
+            # tf.print(loss_y)
+            # if self.physics_informed_phi:
+            #     # Forward pass of the potential flow model.
+            #     u_pred=self.pfenv(y_pred)
+            #     loss_u=self._PINN_MSE(u, u_pred)
+            #     # Summing losses for single gradient.
+            #     # tf.print(loss_u)
+            #     loss=(loss_y + self.alpha * loss_u) / (1 + self.alpha)
+            # else:
+            #     loss=loss_y
+
+            loss = loss_y
         # Compute gradients
-        trainable_vars=self.trainable_variables
-        gradients=tape.gradient(loss, trainable_vars)
+        trainable_vars = self.trainable_variables
+        gradients = tape.gradient(loss, trainable_vars)
 
         # Update weights
         self.optimizer.apply_gradients(zip(gradients, trainable_vars))
@@ -171,10 +225,10 @@ class MLP(keras.Sequential):
 
     def _MSE_normalized(self, y_true, y_pred):
         # tf.shape for dynamic shape of Tensor
-        N=tf.cast(tf.shape(y_true)[0], tf.float32)
-        MSE_p=self.D_2SQ * \
+        N = tf.cast(tf.shape(y_true)[0], tf.float32)
+        MSE_p = self.D_2SQ * \
             tf.reduce_sum(tf.square(gather_p(y_true) - gather_p(y_pred)))
-        MSE_phi=tf.reduce_sum(
+        MSE_phi = tf.reduce_sum(
             tf.square(tf.cos(gather_phi(y_true)) - tf.cos(gather_phi(y_pred))))
         MSE_phi += tf.reduce_sum(
             tf.square(tf.sin(gather_phi(y_true)) - tf.sin(gather_phi(y_pred))))
@@ -182,25 +236,36 @@ class MLP(keras.Sequential):
         MSE_out = (MSE_p + MSE_phi) / (4. * N)
         return MSE_out
 
-    def _rMSE_normalized(self, y_true, y_pred):
+    def _MSE_p_normalized(self, y_true, y_pred):
         # tf.shape for dynamic shape of Tensor
-        N=tf.cast(tf.shape(y_true)[0], tf.float32)
-        MSE_p=self.D_2SQ * \
-            tf.sqrt(tf.reduce_sum(tf.square(gather_p(y_true) - gather_p(y_pred))))
-        MSE_phi=tf.reduce_sum(
-            tf.square(tf.cos(gather_phi(y_true)) - tf.cos(gather_phi(y_pred))))
-        MSE_phi += tf.reduce_sum(
-            tf.square(tf.sin(gather_phi(y_true)) - tf.sin(gather_phi(y_pred))))
+        N = tf.cast(tf.shape(y_true)[0], tf.float32)
+        MSE_p = self.D_2SQ * \
+            tf.reduce_sum(tf.square(gather_p(y_true) - gather_p(y_pred)))
+        MSE_out = MSE_p / (2. * N)
+        return MSE_out
 
-        RMSE_out = (MSE_p + tf.sqrt(MSE_phi)) / (4. * N)
-        return RMSE_out
+    def _MED_p_normalized(self, y_true, y_pred):
+        # tf.shape for dynamic shape of Tensor
+        N = tf.cast(tf.shape(y_true)[0], tf.float32)
+        MSE_p = self.D_2SQ * \
+            tf.reduce_sum(tf.norm(gather_p(y_true) - gather_p(y_pred), axis=1))
+        MSE_out = MSE_p / (2. * N)
+        return MSE_out
+
+    def _MAE_p_normalized(self, y_true, y_pred):
+        # tf.shape for dynamic shape of Tensor
+        N = tf.cast(tf.shape(y_true)[0], tf.float32)
+        MAE_p = self.D_2SQ * \
+            tf.reduce_sum(tf.abs(gather_p(y_true) - gather_p(y_pred)))
+        MAE_out = MAE_p / (2. * N)
+        return MAE_out
 
     def _MAE_normalized(self, y_true, y_pred):
         # tf.shape for dynamic shape of Tensor
-        N=tf.cast(tf.shape(y_true)[0], tf.float32)
-        MAE_p=self.D_2SQ * \
+        N = tf.cast(tf.shape(y_true)[0], tf.float32)
+        MAE_p = self.D_2SQ * \
             tf.reduce_sum(tf.abs(gather_p(y_true) - gather_p(y_pred)))
-        MAE_phi=tf.reduce_sum(
+        MAE_phi = tf.reduce_sum(
             tf.abs(tf.cos(gather_phi(y_true)) - tf.cos(gather_phi(y_pred))))
         MAE_phi += tf.reduce_sum(
             tf.abs(tf.sin(gather_phi(y_true)) - tf.sin(gather_phi(y_pred))))
@@ -226,7 +291,6 @@ class MLP(keras.Sequential):
 
         return self.PINN_loss(u_true, u_pred)
 
-    
     def evaluate_full(self, samples_u, samples_y):
         pred_y = self.predict(samples_u)
         pred_y = tf.convert_to_tensor(pred_y, dtype=tf.float32)
@@ -238,7 +302,6 @@ class MLP(keras.Sequential):
         return p_eval, phi_eval
 
 
-
 class MLPHyperModel(HyperModel):
     def __init__(self, pfenv, physics_informed=False, alpha=1):
         self.pfenv = pfenv
@@ -246,7 +309,8 @@ class MLPHyperModel(HyperModel):
         self.alpha = alpha
 
     def build(self, hp):
-        n_layers = hp.Int("num_hidden_layers", min_value=1, max_value=3, default=1)
+        n_layers = hp.Int("num_hidden_layers", min_value=1,
+                          max_value=3, default=1)
         units = []
         for i in range(n_layers):
             units.append(hp.Int("units_" + str(i),
@@ -258,12 +322,15 @@ class MLPHyperModel(HyperModel):
 
         return mlp
 
+
 class MLPTuner(kt.tuners.BayesianOptimization):
     def run_trial(self, trial, *fit_args, **fit_kwargs):
         hp = trial.hyperparameters
-        batch_size = hp.Int("batch_size", min_value=32, max_value=256, step=32, default=32)
+        batch_size = hp.Int("batch_size", min_value=32,
+                            max_value=256, step=32, default=32)
         fit_kwargs['batch_size'] = batch_size
-        fit_kwargs['callbacks']= [tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)]
+        fit_kwargs['callbacks'] = [
+            tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)]
 
         super(MLPTuner, self).run_trial(trial, *fit_args, **fit_kwargs)
 
