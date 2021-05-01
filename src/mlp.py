@@ -61,11 +61,17 @@ class CubicRootNormalize(keras.layers.Layer):
 
 class MLP(keras.Sequential):
 
-    def __init__(self, pfenv: PotentialFlowEnv, n_layers=1, units=[256]):
+    def __init__(self, pfenv: PotentialFlowEnv, n_layers=1, units=[256], physics_informed=False):
         super(MLP, self).__init__()
+        
         self.pfenv = pfenv
         s_bar = pfenv.sensor()
+        self.physics_informed = physics_informed
+
         input_shape = (2*tf.size(s_bar),)
+        # Physics informed only output p = (b, d)
+        n_output_units = pfenv.Y_BAR_SIZE if not physics_informed else pfenv.Y_BAR_SIZE - 1
+
         self.D_2SQ = 1/self.pfenv.dimensions[1]
         self.add(layers.InputLayer(input_shape=input_shape))
         self.add(RescaleProfile())
@@ -75,22 +81,24 @@ class MLP(keras.Sequential):
         # self.add(layers.experimental.preprocessing.Rescaling(scale=scale, input_shape=input_shape))
 
         for i in range(n_layers):
-            self.add(layers.Dense(units[i], activation="sigmoid"))
-        self.add(layers.Dense(pfenv.Y_BAR_SIZE))
+            activation = "tanh"
+            self.add(layers.Dense(units[i], activation="relu"))
+        
+        self.add(layers.Dense(n_output_units))
         # Either transform and wrap phi. Or use special loss function.
         self.summary()
 
-    def compile(self, learning_rate=1e-3, physics_informed=False, alpha=1):
+    def compile(self, learning_rate=1e-3, alpha=1):
         self.alpha = alpha
-        self.physics_informed = physics_informed
-        self.PINN_loss = keras.losses.MeanSquaredError()
+
+        self.PINN_loss = keras.losses.MeanAbsoluteError()
 
         super(MLP, self).compile(
             optimizer=keras.optimizers.Adam(
                 learning_rate=learning_rate),  # Optimizer
             # Loss function to minimize
             # MSE_y
-            loss=self._MSE_normalized,
+            loss=self._MAE_normalized,
             # List of metrics to monitor
             metrics=[potential_flow.ME_p, potential_flow.ME_phi,
                      potential_flow.ME_y(self.pfenv)],
@@ -146,8 +154,7 @@ class MLP(keras.Sequential):
                 loss_u=self._PINN_MSE(u, u_pred)
                 # Summing losses for single gradient.
                 # tf.print(loss_u)
-                # loss=(loss_y + self.alpha * loss_u) / (1 + self.alpha)
-                loss = loss_u
+                loss=(loss_y + self.alpha * loss_u) / (1 + self.alpha)
             else:
                 loss=loss_y
 
@@ -174,6 +181,32 @@ class MLP(keras.Sequential):
 
         MSE_out = (MSE_p + MSE_phi) / (4. * N)
         return MSE_out
+
+    def _rMSE_normalized(self, y_true, y_pred):
+        # tf.shape for dynamic shape of Tensor
+        N=tf.cast(tf.shape(y_true)[0], tf.float32)
+        MSE_p=self.D_2SQ * \
+            tf.sqrt(tf.reduce_sum(tf.square(gather_p(y_true) - gather_p(y_pred))))
+        MSE_phi=tf.reduce_sum(
+            tf.square(tf.cos(gather_phi(y_true)) - tf.cos(gather_phi(y_pred))))
+        MSE_phi += tf.reduce_sum(
+            tf.square(tf.sin(gather_phi(y_true)) - tf.sin(gather_phi(y_pred))))
+
+        RMSE_out = (MSE_p + tf.sqrt(MSE_phi)) / (4. * N)
+        return RMSE_out
+
+    def _MAE_normalized(self, y_true, y_pred):
+        # tf.shape for dynamic shape of Tensor
+        N=tf.cast(tf.shape(y_true)[0], tf.float32)
+        MAE_p=self.D_2SQ * \
+            tf.reduce_sum(tf.abs(gather_p(y_true) - gather_p(y_pred)))
+        MAE_phi=tf.reduce_sum(
+            tf.abs(tf.cos(gather_phi(y_true)) - tf.cos(gather_phi(y_pred))))
+        MAE_phi += tf.reduce_sum(
+            tf.abs(tf.sin(gather_phi(y_true)) - tf.sin(gather_phi(y_pred))))
+
+        MAE_out = (MAE_p + MAE_phi) / (4. * N)
+        return MAE_out
 
     def _PINN_MSE(self, u_true, u_pred):
         def _rescale(x):

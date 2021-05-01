@@ -19,7 +19,7 @@ FNAME_POSTFIX = "_0.npz"
 D = .5
 Y_OFFSET = .025
 N_SENSORS = 8
-SAMPLE_DISTS = [0.05, 0.03]
+SAMPLE_DISTS = [0.05, 0.02]
 
 
 def gen_data_sets(pfenv: PotentialFlowEnv, sample_dists, noise):
@@ -73,7 +73,7 @@ def main():
 
     # sampling.plot(samples_y, "m")
 
-    samples_u = pfenv.sample_sensor_data(samples_y, sensors, noise_stddev=0e-5)
+    samples_u = pfenv.sample_sensor_data(samples_y, sensors, noise_stddev=1e-5)
     samples_u, samples_y = sk_shuffle(samples_u, samples_y)
 
     # mlp = find_best_model(pfenv, (samples_u, samples_y))
@@ -84,14 +84,14 @@ def main():
 
 
     mlp = MLP(pfenv, 3, units=[512, 160, 32])
-    mlp.compile(physics_informed=True, alpha=0.1, learning_rate=0.00001)
+    mlp.compile(alpha=0.001, learning_rate=0.001)
     logs = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
 
     tboard_callback = tf.keras.callbacks.TensorBoard(log_dir = logs,
                                                     histogram_freq = 1)
 # tf.keras.callbacks.EarlyStopping('val_ME_y', patience=50), profile_batch="2,50"
 
-    mlp.fit(samples_u, samples_y, batch_size=128, validation_split=0.2, epochs=100000, callbacks=[])
+    mlp.fit(samples_u, samples_y, batch_size=128, validation_split=0.2, epochs=1000, callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=50)])
 
     file_name = FNAME_PREFIX + str(SAMPLE_DISTS[0]) + FNAME_POSTFIX
     samples_u, samples_y = load_data(DATA_PATH + file_name)
