@@ -5,10 +5,9 @@ from kerastuner import HyperModel
 from kerastuner.engine.tuner_utils import TunerCallback
 import kerastuner as kt
 import numpy as np
-from potential_flow import ME_phi, ME_p, E_p, E_phi, PotentialFlowEnv, SensorArray, gather_p, gather_phi
+from potential_flow import ME_phi, ME_p, E_p, E_phi, ME_y, PotentialFlowEnv, SensorArray, gather_p, gather_phi
 import potential_flow
 from sklearn.utils import shuffle as sk_shuffle
-import copy
 
 class RescaleProfile(keras.layers.Layer):
     def __init__(self, **kwargs):
@@ -140,13 +139,15 @@ class MLP(keras.Sequential):
             # Compute the loss values
             # (the loss function is configured in `compile()`)
             loss_y=self.compiled_loss(y, y_pred)
-
+            # tf.print(loss_y)
             if self.physics_informed:
                 # Forward pass of the potential flow model.
                 u_pred=self.pfenv(y_pred)
-                loss_u=self.PINN_loss(u, u_pred)
+                loss_u=self._PINN_MSE(u, u_pred)
                 # Summing losses for single gradient.
-                loss=(loss_y + self.alpha * loss_u) / (1 + self.alpha)
+                # tf.print(loss_u)
+                # loss=(loss_y + self.alpha * loss_u) / (1 + self.alpha)
+                loss = loss_u
             else:
                 loss=loss_y
 
@@ -173,6 +174,25 @@ class MLP(keras.Sequential):
 
         MSE_out = (MSE_p + MSE_phi) / (4. * N)
         return MSE_out
+
+    def _PINN_MSE(self, u_true, u_pred):
+        def _rescale(x):
+            abs_max = tf.reduce_max(tf.abs(x), axis=1)
+            output = x/tf.reshape(abs_max, (-1, 1))
+            return output
+
+        def rescale_profile(inputs):
+            u_x, u_y = tf.split(inputs, 2, axis=1)
+            u_x = _rescale(u_x)
+            u_y = _rescale(u_y)
+            outputs = tf.concat([u_x, u_y], 1)
+            return outputs
+
+        u_true = rescale_profile(u_true)
+        u_pred = rescale_profile(u_pred)
+
+        return self.PINN_loss(u_true, u_pred)
+
     
     def evaluate_full(self, samples_u, samples_y):
         pred_y = self.predict(samples_u)
@@ -181,6 +201,7 @@ class MLP(keras.Sequential):
         phi_eval = E_phi(samples_y, pred_y)
         print(ME_p(samples_y, pred_y))
         print(ME_phi(samples_y, pred_y))
+        print(ME_y(self.pfenv)(samples_y, pred_y))
         return p_eval, phi_eval
 
 
@@ -192,7 +213,7 @@ class MLPHyperModel(HyperModel):
         self.alpha = alpha
 
     def build(self, hp):
-        n_layers = hp.Int("num_hidden_layers", min_value=1, max_value=5, default=1)
+        n_layers = hp.Int("num_hidden_layers", min_value=1, max_value=3, default=1)
         units = []
         for i in range(n_layers):
             units.append(hp.Int("units_" + str(i),

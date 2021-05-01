@@ -19,7 +19,7 @@ FNAME_POSTFIX = "_0.npz"
 D = .5
 Y_OFFSET = .025
 N_SENSORS = 8
-SAMPLE_DISTS = [0.02, 0.05]
+SAMPLE_DISTS = [0.05, 0.03]
 
 
 def gen_data_sets(pfenv: PotentialFlowEnv, sample_dists, noise):
@@ -44,16 +44,17 @@ def find_best_model(pfenv, data):
     u, y = data
     hypermodel = MLPHyperModel(pfenv, False, 1)
     tuner = MLPTuner(hypermodel, objective=kerastuner.Objective(
-        "val_ME_y",  'min'), max_trials=50, directory='tuner_logs', project_name='MLP_0.05_1e-5_full_range')
+        "val_ME_y",  'min'), max_trials=100, directory='tuner_logs', project_name='MLP_0.05_1e-5_full_range')
     tuner.search_space_summary()
 
-    tuner.search(u, y, epochs=1000, validation_split=0.2)
+    tuner.search(u, y, epochs=500, validation_split=0.2)
     tuner.results_summary()
 
     best_hps = tuner.get_best_hyperparameters()[0]
     print(best_hps)
     model = tuner.get_best_models()[0]
-    model.save('models/hp_optimized')
+    # model.save('models/hp_optimized')
+    return model
 
 def main():
     D_sensors = D
@@ -67,32 +68,32 @@ def main():
 
     # gen_data_sets(pfenv, SAMPLE_DISTS, 0)
 
-    file_name = FNAME_PREFIX + str(SAMPLE_DISTS[0]) + FNAME_POSTFIX
+    file_name = FNAME_PREFIX + str(SAMPLE_DISTS[1]) + FNAME_POSTFIX
     samples_u, samples_y = load_data(DATA_PATH + file_name)
 
     # sampling.plot(samples_y, "m")
 
-    samples_u = pfenv.sample_sensor_data(samples_y, sensors, noise_stddev=1e-5)
+    samples_u = pfenv.sample_sensor_data(samples_y, sensors, noise_stddev=0e-5)
     samples_u, samples_y = sk_shuffle(samples_u, samples_y)
 
-    # find_best_model(pfenv, (samples_u, samples_y))
+    # mlp = find_best_model(pfenv, (samples_u, samples_y))
 
     # qm = QM(pfenv)
     # p_eval, phi_eval = qm.evaluate(samples_u, samples_y, True)
     # plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval)
 
 
-    mlp = MLP(pfenv, 3, units=[288, 160, 32])
-    mlp.compile(physics_informed=False, alpha=1, learning_rate=0.0018227)
-    # logs = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    mlp = MLP(pfenv, 3, units=[512, 160, 32])
+    mlp.compile(physics_informed=True, alpha=0.1, learning_rate=0.00001)
+    logs = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
 
-    # tboard_callback = tf.keras.callbacks.TensorBoard(log_dir = logs,
-    #                                                 histogram_freq = 1, profile_batch="2,50")
-    # , callbacks = [tboard_callback]
+    tboard_callback = tf.keras.callbacks.TensorBoard(log_dir = logs,
+                                                    histogram_freq = 1)
+# tf.keras.callbacks.EarlyStopping('val_ME_y', patience=50), profile_batch="2,50"
 
-    mlp.fit(samples_u, samples_y, batch_size=128, validation_split=0.2, epochs=100)
+    mlp.fit(samples_u, samples_y, batch_size=128, validation_split=0.2, epochs=100000, callbacks=[])
 
-    file_name = FNAME_PREFIX + str(SAMPLE_DISTS[1]) + FNAME_POSTFIX
+    file_name = FNAME_PREFIX + str(SAMPLE_DISTS[0]) + FNAME_POSTFIX
     samples_u, samples_y = load_data(DATA_PATH + file_name)
     samples_u = pfenv.sample_sensor_data(samples_y, sensors, noise_stddev=1e-5)
 

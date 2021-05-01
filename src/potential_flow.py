@@ -207,41 +207,56 @@ def MSE(y_true, y_pred):
 
 
 def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval):
-    plt.tricontour(y_bar[:, 0], y_bar[:, 1], p_eval, linewidths=0.5,
-                   colors='k', levels=[0.0, 0.01, 0.03, 0.05, 0.1])
-    cntr = plt.tricontourf(y_bar[:, 0], y_bar[:, 1], p_eval, levels=[
-                           0.0, 0.01, 0.03, 0.05, 0.1])
-    plt.colorbar(cntr)
-    s_bar = pfenv.sensor()
-    plt.scatter(s_bar, np.zeros((len(s_bar), )))
-    plt.show()
+    data = [p_eval, phi_eval/np.pi]
+    titles = [r"$\mathrm{E}_\mathbf{p}$", r"$\mathrm{E}_\phi/\pi$"]
+    fig, axes = plt.subplots(nrows=2, ncols=1, sharex=True, sharey=True, figsize=(9,9))
+    
+    axes[1].set_xlabel("x")
 
+    for i in range(2):
+        axes[i].tricontour(y_bar[:, 0], y_bar[:, 1], data[i], linewidths=0.5,
+                    colors='k', levels=[0.0, 0.01, 0.03, 0.05, 0.1])
+        cntr = axes[i].tricontourf(y_bar[:, 0], y_bar[:, 1], data[i], levels=[
+                            0.0, 0.01, 0.03, 0.05, 0.1])
+        axes[i].set_title(titles[i])
+        axes[i].set_ylabel("y")
+        axes[i].set_aspect("equal")
+        # SET equal aspect
+        s_bar = pfenv.sensor()
+        axes[i].scatter(s_bar, np.zeros((len(s_bar), )))
+
+    fig.subplots_adjust(right=0.8)
+    cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+    fig.colorbar(cntr, cax=cbar_ax)
+
+    fig.suptitle("Multilayer Perceptron - Noise 1e-5")
+    plt.show()
 
 def main():
     tf.config.run_functions_eagerly(True)
 
-    print(ME_phi(tf.constant([0., 0., -4.]), tf.constant([0., 0., 0.])))
+    print(ME_phi(tf.constant([0., 0., -0.5]), tf.constant([0., 0., 48.])))
 
-    pfenv = PotentialFlowEnv(sensor=SensorArray(1000, (-0.5, 0.5)))
-    y_bar = tf.constant([.5, .5, 2.])
+    # pfenv = PotentialFlowEnv(sensor=SensorArray(1000, (-0.5, 0.5)))
+    # y_bar = tf.constant([.5, .5, 2.])
 
-    print(y_bar)
-    print(pfenv(tf.constant([[.5, .5, 2.]])))
+    # print(y_bar)
+    # print(pfenv(tf.constant([[.5, .5, 2.]])))
 
-    result = pfenv.forward_step(y_bar)
+    # result = pfenv([y_bar])
 
-    u_xy = np.split(result, 2)
-    t = np.linspace(-0.5, 0.5, 1000)
+    # u_xy = np.split(result, 2)
+    # t = np.linspace(-0.5, 0.5, 1000)
 
-    plt.plot(t, u_xy[0])
-    plt.plot(t, u_xy[1])
-    plt.show()
+    # plt.plot(t, u_xy[0])
+    # plt.plot(t, u_xy[1])
+    # plt.show()
 
-    print(pfenv.v(tf.constant(0.), (tf.constant(.5),
-                                    tf.constant(.5), tf.constant(0.))))
-    print(pfenv.v(tf.constant(-.25), (tf.constant(.5),
-                                      tf.constant(.5), tf.constant(0.))))
-    pass
+    # print(pfenv.v(tf.constant(0.), (tf.constant(.5),
+    #                                 tf.constant(.5), tf.constant(0.))))
+    # print(pfenv.v(tf.constant(-.25), (tf.constant(.5),
+    #                                   tf.constant(.5), tf.constant(0.))))
+    # pass
 
 
 if __name__ == "__main__":

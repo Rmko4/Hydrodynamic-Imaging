@@ -1,4 +1,4 @@
-from potential_flow import ME_phi, ME_p, E_p, E_phi, PotentialFlowEnv, plot_prediction_contours
+from potential_flow import ME_phi, ME_p, ME_y, E_p, E_phi, PotentialFlowEnv, plot_prediction_contours
 from potential_flow import SensorArray
 import numpy as np
 import tensorflow as tf
@@ -122,6 +122,7 @@ class QM:
         phi_eval = E_phi(samples_y, pred_y)
         print(ME_p(samples_y, pred_y))
         print(ME_phi(samples_y, pred_y))
+        print(ME_y(self.pfenv)(samples_y, pred_y))
         return p_eval, phi_eval
 
 
