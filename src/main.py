@@ -83,7 +83,7 @@ def main():
     # plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval)
 
 
-    mlp = MLP(pfenv, 3, units=[512, 160, 32], physics_informed_phi=True)
+    mlp = MLP(pfenv, 3, units=[512, 160, 32], physics_informed_phi=False)
     mlp.compile(alpha=0.001, learning_rate=0.001)
     logs = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
 
@@ -91,7 +91,7 @@ def main():
                                                     histogram_freq = 1)
 # tf.keras.callbacks.EarlyStopping('val_ME_y', patience=50), profile_batch="2,50"
 
-    mlp.fit(samples_u, samples_y, batch_size=128, validation_split=0.2, epochs=1000, callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=50)])
+    mlp.fit(samples_u, samples_y, batch_size=128, validation_split=0.2, epochs=1000, callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)])
 
     file_name = FNAME_PREFIX + str(SAMPLE_DISTS[0]) + FNAME_POSTFIX
     samples_u, samples_y = load_data(DATA_PATH + file_name)

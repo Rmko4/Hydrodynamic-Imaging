@@ -59,60 +59,18 @@ class CubicRootNormalize(keras.layers.Layer):
     def compute_output_shape(self, input_shape):
         return input_shape
 
-class DirectionMap(keras.layers.Layer):
-    def __init__(self, pfenv: PotentialFlowEnv, **kwargs):
-        super(CubicRootNormalize, self).__init__(**kwargs)
-        self.pfenv = pfenv
-
-    def _phi_calc(self, u, p):
-        s = self.pfenv.sensor()
-
-        def phi_calc_inner(u_p_pair):
-            u, p = u_p_pair
-            u_xy = tf.split(u, 2, axis=-1)
-            rho = self.pfenv.rho(s, p[0], p[1])
-
-            Psi_e = self.pfenv.Psi_e(rho)
-            Psi_n = self.pfenv.Psi_n(rho)
-            Psi_o = self.pfenv.Psi_o(rho)
-
-            cos_phi = tf.reduce_mean(u_xy[0] * Psi_n - u_xy[1] * Psi_o)
-            sin_phi = tf.reduce_mean(u_xy[1] * Psi_e - u_xy[0] * Psi_o)
-
-            phi = tf.constant(np.pi) + tf.atan2(sin_phi, cos_phi)
-            return phi
-
-        return tf.vectorized_map(phi_calc_inner, (u, p))
-
-    def call(self, inputs):
-        phi = self.phi_calc(u, y_pred)
-        y_pred = tf.concat([y_pred, tf.reshape(phi, [-1, 1])], axis=-1)
-        u_x, u_y = tf.split(inputs, 2, axis=1)
-        scale = np.math.pow(self.pfenv.y_offset, 3) / \
-            (self.pfenv.W * np.math.pow(self.pfenv.a, 3))
-
-        u_x = self._normalize(u_x, 0.5*scale)
-        u_y = self._normalize(u_y, scale)
-
-        outputs = tf.concat([u_x, u_y], 1)
-        return outputs
-
-    def compute_output_shape(self, input_shape):
-        return input_shape
-
-
 class MLP(keras.Sequential):
 
     def __init__(self, pfenv: PotentialFlowEnv, n_layers=1, units=[256], physics_informed_phi=False, print_summary=True):
         super(MLP, self).__init__()
 
         self.pfenv = pfenv
-        s_bar = pfenv.sensor()
+        self.s_bar = pfenv.sensor()
         self.physics_informed_phi = physics_informed_phi
-
+        #TODO: PHI GRADIENT MODE
         self.p_loss = self._MAE_normalized if not physics_informed_phi else self._MAE_p_normalized
 
-        input_shape = (2*tf.size(s_bar),)
+        input_shape = (2*tf.size(self.s_bar),)
         # Physics informed only output p = (b, d)
         n_output_units = pfenv.Y_BAR_SIZE if not physics_informed_phi else pfenv.Y_BAR_SIZE - 1
 
@@ -133,6 +91,14 @@ class MLP(keras.Sequential):
 
         if print_summary:
             self.summary()
+
+    def call(self, inputs, training=None, mask=None):
+        outputs = super().call(inputs, training=training, mask=mask)
+        if self.physics_informed_phi:
+            phi = self._phi_calc(inputs, outputs)
+            outputs = tf.concat([outputs, tf.reshape(phi, [-1, 1])], axis=-1)
+        return outputs
+
 
     def compile(self, learning_rate=1e-3, alpha=1):
         self.alpha = alpha
@@ -196,9 +162,7 @@ class MLP(keras.Sequential):
             # (the loss function is configured in `compile()`)
             loss_y = self.compiled_loss(y, y_pred)
 
-            if self.physics_informed_phi:
-                phi = self.phi_calc(u, y_pred)
-                y_pred = tf.concat([y_pred, tf.reshape(phi, [-1, 1])], axis=-1)
+
 
             # tf.print(loss_y)
             # if self.physics_informed_phi:
@@ -222,6 +186,25 @@ class MLP(keras.Sequential):
         self.compiled_metrics.update_state(y, y_pred)
         # Return a dict mapping metric names to current value
         return {m.name: m.result() for m in self.metrics}
+
+    def _phi_calc(self, u, p):
+
+        def phi_calc_inner(u_p_pair):
+            u, p = u_p_pair
+            u_xy = tf.split(u, 2, axis=-1)
+            rho = self.pfenv.rho(self.s_bar, p[0], p[1])
+
+            Psi_e = self.pfenv.Psi_e(rho)
+            Psi_n = self.pfenv.Psi_n(rho)
+            Psi_o = self.pfenv.Psi_o(rho)
+
+            cos_phi = tf.reduce_mean(u_xy[0] * Psi_n - u_xy[1] * Psi_o)
+            sin_phi = tf.reduce_mean(u_xy[1] * Psi_e - u_xy[0] * Psi_o)
+
+            phi = tf.constant(np.pi) + tf.atan2(sin_phi, cos_phi)
+            return phi
+
+        return tf.vectorized_map(phi_calc_inner, (u, p))
 
     def _MSE_normalized(self, y_true, y_pred):
         # tf.shape for dynamic shape of Tensor
