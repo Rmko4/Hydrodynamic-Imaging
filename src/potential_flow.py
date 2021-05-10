@@ -138,31 +138,42 @@ class PotentialFlowEnv:
     def rho(self, s, b, d):
         return (s - b) / d
 
-    def sample_pairs(self, noise_stddev=0, min_distance=.1, k=30):
+    def sample_snap_pairs(self, sensor: SensorArray = None, noise_stddev=0, min_distance=.1, k=30):
+        if sensor is not None:
+            self.sensor = sensor
         # Write to tensor array
         samples_y = sampling.poisson_disc_sample(
             self.sample_domains, min_distance, k)
         samples_y[:, 2] = 2 * np.pi * \
             samples_y[:, 2] / (self.sample_domains[2, 1])
-        samples_y = tf.constant(samples_y, tf.float32)
 
-        samples_u = self(samples_y)
-        gaus_noise = tf.random.normal(tf.shape(samples_u), 0, noise_stddev)
-        samples_u += gaus_noise
+        samples_u = self.sample_sensor(samples_y, self.sensor, noise_stddev)
+        return samples_u, samples_y
 
-        self.samples = (samples_u, samples_y)
-        return samples_u.numpy(), samples_y.numpy()
-
-    def sample_sensor_data(self, samples_y, sensor: SensorArray = None, noise_stddev=0):
+    def sample_sensor(self, samples_y, sensor: SensorArray = None, noise_stddev=0):
         if sensor is not None:
             self.sensor = sensor
 
-        samples_u = self(samples_y)
-        # sampling.rng.normal(0, noise_stddev, np.shape(samples_u))
+        samples_u = self(tf.constant(samples_y, tf.float32))
         gaus_noise = tf.random.normal(tf.shape(samples_u), 0, noise_stddev)
         samples_u += gaus_noise
 
         return samples_u.numpy()
+
+    def sample_path_pairs(self, sensor: SensorArray = None, noise_stddev=0,
+                          sampling_freq=64.0, inner_sampling_factor=10, duration=20.0,
+                          max_turn_angle=np.pi/24, circum_radius=None, mode="rotate"):
+        if sensor is not None:
+            self.sensor = sensor
+        n_samples = int(sampling_freq * duration)
+        step_distance = self.W.numpy() / sampling_freq
+        samples_y = sampling.sample_path_2D(
+            self.sample_domains, step_distance, max_turn_angle=max_turn_angle,
+            circum_radius=circum_radius, inner_sampling_factor=inner_sampling_factor,
+            n_samples=n_samples, mode=mode)
+
+        samples_u = self.sample_sensor(samples_y, self.sensor, noise_stddev)
+        return samples_u, samples_y
 
     def initSensor(self, sensor):
         if sensor is None:
@@ -205,7 +216,6 @@ def E_phi(y_true, y_pred):
 def MSE(y_true, y_pred):
     return tf.reduce_mean(tf.square(y_true - y_pred))
 
-
 def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval):
     data = [p_eval, phi_eval/np.pi]
     titles = [r"$\mathrm{E}_\mathbf{p}$", r"$\mathrm{E}_\phi/\pi$"]
@@ -237,7 +247,8 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval):
 def main():
     tf.config.run_functions_eagerly(True)
 
-    print(ME_phi(tf.constant([0., 0., -0.5]), tf.constant([0., 0., 48.])))
+    print(ME_phi(tf.constant([0., 0., 1.5*np.pi]),
+                 tf.constant([0., 0., -np.pi])))
 
     # pfenv = PotentialFlowEnv(sensor=SensorArray(1000, (-0.5, 0.5)))
     # y_bar = tf.constant([.5, .5, 2.])

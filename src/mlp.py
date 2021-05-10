@@ -2,7 +2,6 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 from kerastuner import HyperModel
-from kerastuner.engine.tuner_utils import TunerCallback
 import kerastuner as kt
 import numpy as np
 from potential_flow import ME_phi, ME_p, E_p, E_phi, ME_y, PotentialFlowEnv, SensorArray, gather_p, gather_phi
@@ -61,21 +60,21 @@ class CubicRootNormalize(keras.layers.Layer):
 
 class MLP(keras.Sequential):
 
-    def __init__(self, pfenv: PotentialFlowEnv, n_layers=1, units=[256], physics_informed_phi=False, print_summary=True):
+    def __init__(self, pfenv: PotentialFlowEnv, n_layers=1, units=[256], physics_informed_phi=False, phi_gradient=True, window_size=None, print_summary=True):
         super(MLP, self).__init__()
 
         self.pfenv = pfenv
         self.s_bar = pfenv.sensor()
         self.physics_informed_phi = physics_informed_phi
-        #TODO: PHI GRADIENT MODE
-        self.p_loss = self._MAE_normalized if not physics_informed_phi else self._MAE_p_normalized
 
-        input_shape = (2*tf.size(self.s_bar),)
+        self.p_loss = self._MAE_normalized if phi_gradient else self._MAE_p_normalized
+
+        input_shape = (window_size, 2*tf.size(self.s_bar))
         # Physics informed only output p = (b, d)
         n_output_units = pfenv.Y_BAR_SIZE if not physics_informed_phi else pfenv.Y_BAR_SIZE - 1
 
         self.D_2SQ = 1/self.pfenv.dimensions[1]
-        self.add(layers.InputLayer(input_shape=input_shape))
+        self.add(layers.Flatten(input_shape=input_shape))
         self.add(RescaleProfile())
         # self.add(CubicRootNormalize(pfenv))
         # Make layer that scales the u_x_bar and u_y_bar separately on perhaps current max* or overal max.
@@ -116,40 +115,6 @@ class MLP(keras.Sequential):
                      potential_flow.ME_y(self.pfenv)],
             run_eagerly=False
         )
-
-    def fit(self,
-            x=None,
-            y=None,
-            batch_size=None,
-            epochs=1,
-            verbose='auto',
-            callbacks=None,
-            validation_split=0.,
-            validation_data=None,
-            shuffle=True,
-            class_weight=None,
-            sample_weight=None,
-            initial_epoch=0,
-            steps_per_epoch=None,
-            validation_steps=None,
-            validation_batch_size=None,
-            validation_freq=1,
-            max_queue_size=10,
-            workers=1,
-            use_multiprocessing=False):
-        x, y = sk_shuffle(x, y)
-        return super().fit(x=x, y=y, batch_size=batch_size, epochs=epochs,
-                           verbose=verbose, callbacks=callbacks,
-                           validation_split=validation_split,
-                           validation_data=validation_data, shuffle=shuffle,
-                           class_weight=class_weight, sample_weight=sample_weight,
-                           initial_epoch=initial_epoch,
-                           steps_per_epoch=steps_per_epoch,
-                           validation_steps=validation_steps,
-                           validation_batch_size=validation_batch_size,
-                           validation_freq=validation_freq,
-                           max_queue_size=max_queue_size, workers=workers,
-                           use_multiprocessing=use_multiprocessing)
 
     def train_step(self, data):
         u, y = data

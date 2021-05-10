@@ -82,16 +82,32 @@ def poisson_disc_sample(domains=np.array([[0., 1.0], [0., 1.0]]), r=0.05, k=30):
     return np.array(samples)
 
 
-def sample_path_2D(domains=np.array([[0., 1.0], [0., 1.0]]),
-                   step_distance=.025, max_turn_angle=np.pi/4, n_samples=500000, mode='rotate'):
-    s_domains = np.concatenate([domains, [[0, 2*np.pi]]])
+def sample_path_2D(domains=np.array([[0., 1.0], [0., 1.0]]), step_distance=.05,
+                   max_turn_angle=np.pi/4, circum_radius=None, n_samples=100,
+                   inner_sampling_factor=10, mode='rotate'):
 
-    # Sample the first one such that it can not go out.
-    n_reg_poly = 2 * np.pi / max_turn_angle
+    step_distance /= inner_sampling_factor
 
-    in_radius = step_distance / (2 * np.sin(np.pi/n_reg_poly))
-    turn_radius = in_radius + .5 * step_distance
-    d_radius = 3 * in_radius
+    if circum_radius is None:
+        n_reg_poly = 2 * np.pi / max_turn_angle
+        circum_radius = step_distance / (2 * np.sin(np.pi/n_reg_poly))
+    else:
+        if step_distance > 2 * circum_radius:
+            value = step_distance / 2
+            raise ValueError(f"circum_radius should be >= {value}")
+        n_reg_poly = np.pi / np.arcsin(step_distance / (2 * circum_radius))
+        max_turn_angle = 2 * np.pi / n_reg_poly
+
+    turn_radius = circum_radius + .5 * step_distance
+    d_radius = 3 * circum_radius
+
+    if mode == "rotate":
+        reduction = np.tile([d_radius, -d_radius], (2, 1))
+        initial_s_domains = domains[0:2] + reduction
+    else:
+        initial_s_domains = domains[0:2]
+
+    initial_s_domains = np.concatenate([initial_s_domains, [[0, 2*np.pi]]])
 
     def forward(p):
         x = p[0] + step_distance * np.cos(p[2])
@@ -138,7 +154,10 @@ def sample_path_2D(domains=np.array([[0., 1.0], [0., 1.0]]),
             phi_addition = 0.5*np.pi
 
         if phi_addition is None:
-            phi = (x[2] + rng.uniform(-max_turn_angle, max_turn_angle)) % (2*np.pi)
+            # phi = rng.normal(0, max_turn_angle)
+            # phi = (x[2] + np.clip(phi, -max_turn_angle, max_turn_angle)) % (2*np.pi)
+            phi = (x[2] + rng.uniform(-max_turn_angle,
+                                      max_turn_angle)) % (2*np.pi)
         else:
             norm_x2 = (x[2] + phi_addition) % (2*np.pi)
 
@@ -171,24 +190,28 @@ def sample_path_2D(domains=np.array([[0., 1.0], [0., 1.0]]),
             x[2] = -x[2] % (2*np.pi)
             reflect = True
         if reflect is False:
-            x[2] = (x[2] + rng.uniform(-max_turn_angle, max_turn_angle)) % (2*np.pi)
+            x[2] = (x[2] + rng.uniform(-max_turn_angle,
+                                       max_turn_angle)) % (2*np.pi)
         return x
 
     boundary_f = reflect if mode == 'reflect' else rotate
 
     path = []
-    x = uniform_hyper_cube(s_domains)
-    x = np.array([0.44516, 0.06533, 1.2*np.pi])
+    x = uniform_hyper_cube(initial_s_domains)
     path.append(x)
-    for _ in range(n_samples - 1):
+
+    n_path_iters = inner_sampling_factor * n_samples - 1
+    for i in range(n_path_iters):
         x = forward(x)
         x = boundary_f(x)
-        path.append(x)
+
+        if i % 10 == 9:
+            path.append(x)
 
     return np.array(path)
 
 
-def plot(X, axis_unit="m"):
+def plot(X, domains=None, title="Sampled data points", axis_unit="m"):
     if X.shape[1] == 2 or 3:
         plt.scatter(X[:, 0], X[:, 1], s=2, c="black")
     if X.shape[1] == 3:
@@ -196,16 +219,18 @@ def plot(X, axis_unit="m"):
         v = np.sin(X[:, 2])
         plt.quiver(X[:, 0], X[:, 1], u, v, color="grey")
 
-    # plt.xlim([0, 1])
-    # plt.ylim([0, 1])
+    if domains is not None:
+        plt.hlines(domains[1, :], domains[0, 0],
+                   domains[0, 1], colors='grey', linestyles='--')
+        plt.vlines(domains[0, :], domains[1, 0],
+                   domains[1, 1], colors='grey', linestyles='--')
+
     ax = plt.gca()
     ax.set_aspect("equal")
-    ax.set_axisbelow(True)
-    plt.grid(linestyle="--")
 
     plt.xlabel("x({})".format(axis_unit))
     plt.ylabel("y({})".format(axis_unit))
-    plt.title("Sampled data points")
+    plt.title(title)
 
     plt.show()
 
@@ -227,9 +252,9 @@ def main():
     samples_path = sample_path_2D(mode='rotate')
     plot(samples_path)
 
-    # samples = poisson_disc_sample()
-    # print(len(samples))
-    # plot(samples)
+    samples = poisson_disc_sample()
+    print(len(samples))
+    plot(samples)
     pass
 
 

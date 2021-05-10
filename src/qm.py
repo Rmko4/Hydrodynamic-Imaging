@@ -148,7 +148,7 @@ def main():
 
     # qm.phi_calc(result, .5, .5)
 
-    samples_u, samples_y = pfenv.sample_pairs(noise_stddev=1e-5)
+    samples_u, samples_y = pfenv.sample_snap_pairs(noise_stddev=1e-5)
     # print(qm.psi_quad_env(pfenv.sensor().numpy(), samples_y[0][0].numpy(
     # ), samples_y[0][1].numpy(), samples_y[0][2].numpy()))
     # print(pfenv.forward_step(samples_y[0]))
