@@ -257,7 +257,7 @@ class MLPHyperModel(HyperModel):
 
     def build(self, hp):
         n_layers = hp.Int("num_hidden_layers", min_value=1,
-                          max_value=3, default=1)
+                          max_value=5, default=1)
         units = []
         for i in range(n_layers):
             units.append(hp.Int("units_" + str(i),
@@ -275,10 +275,10 @@ class MLPTuner(kt.tuners.BayesianOptimization):
     def run_trial(self, trial, *fit_args, **fit_kwargs):
         hp = trial.hyperparameters
         batch_size = hp.Int("batch_size", min_value=32,
-                            max_value=256, step=32, default=32)
+                            max_value=512, step=32, default=32)
         fit_kwargs['batch_size'] = batch_size
         fit_kwargs['callbacks'] = [
-            tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)]
+            tf.keras.callbacks.EarlyStopping('val_ME_y', patience=5)]
 
         super(MLPTuner, self).run_trial(trial, *fit_args, **fit_kwargs)
 

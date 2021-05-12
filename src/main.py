@@ -73,15 +73,16 @@ def init_data(file_z, pfenv: PotentialFlowEnv, sensors: SensorArray, noise=1e-5,
     return samples_u, samples_y
 
 
-def find_best_model(pfenv, data, max_trials=10):
+def find_best_model(pfenv, data, max_trials=10, max_epochs=100, validation_split=0.2):
     u, y = data
     hypermodel = MLPHyperModel(pfenv, False, True, 1)
     tuner = MLPTuner(hypermodel, objective=kerastuner.Objective(
         "val_ME_y",  'min'), max_trials=max_trials, directory='tuner_logs', project_name='MLP_0.015_1e-5_full_range')
     tuner.search_space_summary()
 
-    tuner.search(u, y, epochs=100, validation_split=0.1, callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)])
-    tuner.results_summary()
+    tuner.search(u, y, epochs=max_epochs, validation_split=validation_split)
+    print()
+    # tuner.results_summary()
 
     best_hps = tuner.get_best_hyperparameters()[0]
     print(best_hps)
@@ -110,9 +111,10 @@ def run_MLP(pfenv: PotentialFlowEnv, sensors: SensorArray, data, window_size=1):
         mlp.fit(train, epochs=1000, validation_data=val,
                 callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)])
 
-        samples_y = tf.constant(np.concatenate([y for _, y in test], axis=0), dtype=tf.float32)
+        samples_y = tf.constant(np.concatenate(
+            [y for _, y in test], axis=0), dtype=tf.float32)
         p_eval, phi_eval = mlp.evaluate_full(test, samples_y)
-        
+
     else:
         samples_u, samples_y = data
         mlp.fit(samples_u, samples_y, batch_size=128, validation_split=0.2, epochs=2,
@@ -125,7 +127,7 @@ def run_MLP(pfenv: PotentialFlowEnv, sensors: SensorArray, data, window_size=1):
 
     file_name = FNAME_PREFIX + "2_" + str(SAMPLE_DISTS[1]) + FNAME_RES_POSTFIX
     np.savez(RES_PATH + file_name, p_eval, phi_eval, samples_y)
-    
+
     plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval)
 
 
@@ -167,14 +169,13 @@ def main():
     # data_gen_triple = (*split_window_generator(data_train, 5), window_generator(data_test, 5, shuffle=False))
     # run_MLP(pfenv, sensors, data_gen_triple, 5)
 
-    
     # gen_path_data_sets(pfenv, 2500.0, 0)
     # gen_poisson_data_sets(pfenv, SAMPLE_DISTS, 0)
 
     data = init_data(str(SAMPLE_DISTS[0]), pfenv, sensors, 1e-5, shuffle=True)
-    run_MLP(pfenv, sensors, data)
+    # run_MLP(pfenv, sensors, data)
 
-    mlp = find_best_model(pfenv, data, max_trials=10)
+    mlp = find_best_model(pfenv, data, max_trials=2, validation_split=0.1)
     pass
     # run_QM(pfenv, data)
 
