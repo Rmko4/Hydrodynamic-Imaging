@@ -1,9 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from utils.arraylist import ArrayList
 from sklearn.metrics import pairwise_distances
 
 rng = np.random.default_rng()
-
 
 def uniform_hyper_sherical_annulus(size, center, inner_radius, outer_radius):
     n = center.shape[0]
@@ -37,7 +37,7 @@ def poisson_disc_sample(domains=np.array([[0., 1.0], [0., 1.0]]), r=0.05, k=30):
     def add_sample(point):
         samples.append(point)
         indices = get_indices(point)
-        grid[indices] = len(samples) - 1
+        grid[indices] = samples.size - 1
         active_list.append(grid[indices])
         pass
 
@@ -56,11 +56,11 @@ def poisson_disc_sample(domains=np.array([[0., 1.0], [0., 1.0]]), r=0.05, k=30):
         sample_i = grid[tuple(iter)].flatten()
         sample_i = sample_i[sample_i != -1]
 
-        present_samples = np.take(samples, sample_i, axis=0)
+        present_samples = samples.data.take(sample_i, axis=0)
         return np.any(np.sum((point - present_samples) ** 2, axis=1) < r_sq)
 
     grid = np.full(n_cells, -1)
-    samples = []
+    samples = ArrayList(shape=(None, n), dtype=np.float32)
     active_list = []
 
     x_0 = uniform_hyper_cube(domains)
@@ -79,7 +79,7 @@ def poisson_disc_sample(domains=np.array([[0., 1.0], [0., 1.0]]), r=0.05, k=30):
         if not new_point:
             active_list.pop(sel_i)
 
-    return np.array(samples)
+    return samples.finalize()
 
 
 def sample_path_2D(domains=np.array([[0., 1.0], [0., 1.0]]), step_distance=.05,
@@ -249,12 +249,12 @@ def print_mean_min_distance(samples):
 
 
 def main():
-    samples_path = sample_path_2D(mode='rotate')
-    plot(samples_path)
+    # samples_path = sample_path_2D(mode='rotate')
+    # plot(samples_path)
 
-    samples = poisson_disc_sample()
-    print(len(samples))
-    plot(samples)
+    samples = poisson_disc_sample(np.array([[0., 1.0], [0., 1.0], [0., 1.0]]), r=0.08)
+    # print(len(samples))
+    # plot(samples)
     pass
 
 

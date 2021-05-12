@@ -58,9 +58,10 @@ class CubicRootNormalize(keras.layers.Layer):
     def compute_output_shape(self, input_shape):
         return input_shape
 
+
 class MLP(keras.Sequential):
 
-    def __init__(self, pfenv: PotentialFlowEnv, n_layers=1, units=[256], physics_informed_phi=False, phi_gradient=True, window_size=None, print_summary=True):
+    def __init__(self, pfenv: PotentialFlowEnv, n_layers=1, units=[256], physics_informed_phi=False, phi_gradient=True, window_size=1, print_summary=True):
         super(MLP, self).__init__()
 
         self.pfenv = pfenv
@@ -69,11 +70,15 @@ class MLP(keras.Sequential):
 
         self.p_loss = self._MAE_normalized if phi_gradient else self._MAE_p_normalized
 
-        input_shape = (window_size, 2*tf.size(self.s_bar))
+        if window_size == 1:
+            input_shape = (2*tf.size(self.s_bar), )
+        else:
+            input_shape = (window_size, 2*tf.size(self.s_bar))
+
         # Physics informed only output p = (b, d)
         n_output_units = pfenv.Y_BAR_SIZE if not physics_informed_phi else pfenv.Y_BAR_SIZE - 1
 
-        self.D_2SQ = 1/self.pfenv.dimensions[1]
+        self.D_2SQ = 1 / (2.*self.pfenv.dimensions[1])
         self.add(layers.Flatten(input_shape=input_shape))
         self.add(RescaleProfile())
         # self.add(CubicRootNormalize(pfenv))
@@ -91,19 +96,14 @@ class MLP(keras.Sequential):
         if print_summary:
             self.summary()
 
-    def call(self, inputs, training=None, mask=None):
+    def call(self, inputs, training=False, mask=None):
         outputs = super().call(inputs, training=training, mask=mask)
         if self.physics_informed_phi:
             phi = self._phi_calc(inputs, outputs)
             outputs = tf.concat([outputs, tf.reshape(phi, [-1, 1])], axis=-1)
         return outputs
 
-
-    def compile(self, learning_rate=1e-3, alpha=1):
-        self.alpha = alpha
-
-        self.PINN_loss = keras.losses.MeanAbsoluteError()
-
+    def compile(self, learning_rate=1e-3):
         super(MLP, self).compile(
             optimizer=keras.optimizers.Adam(
                 learning_rate=learning_rate),  # Optimizer
@@ -126,8 +126,6 @@ class MLP(keras.Sequential):
             # Compute the loss values
             # (the loss function is configured in `compile()`)
             loss_y = self.compiled_loss(y, y_pred)
-
-
 
             # tf.print(loss_y)
             # if self.physics_informed_phi:
@@ -192,69 +190,70 @@ class MLP(keras.Sequential):
         MSE_out = MSE_p / (2. * N)
         return MSE_out
 
-    def _MED_p_normalized(self, y_true, y_pred):
-        # tf.shape for dynamic shape of Tensor
-        N = tf.cast(tf.shape(y_true)[0], tf.float32)
-        MSE_p = self.D_2SQ * \
-            tf.reduce_sum(tf.norm(gather_p(y_true) - gather_p(y_pred), axis=1))
-        MSE_out = MSE_p / (2. * N)
-        return MSE_out
-
     def _MAE_p_normalized(self, y_true, y_pred):
         # tf.shape for dynamic shape of Tensor
         N = tf.cast(tf.shape(y_true)[0], tf.float32)
-        MAE_p = self.D_2SQ * \
-            tf.reduce_sum(tf.abs(gather_p(y_true) - gather_p(y_pred)))
-        MAE_out = MAE_p / (2. * N)
+        AE_p = self.D_2SQ * tf.reduce_sum(E_p(y_true, y_pred, ord=1))
+        MAE_out = AE_p / N
         return MAE_out
 
     def _MAE_normalized(self, y_true, y_pred):
         # tf.shape for dynamic shape of Tensor
         N = tf.cast(tf.shape(y_true)[0], tf.float32)
-        MAE_p = self.D_2SQ * \
-            tf.reduce_sum(tf.abs(gather_p(y_true) - gather_p(y_pred)))
-        MAE_phi = tf.reduce_sum(
-            tf.abs(tf.cos(gather_phi(y_true)) - tf.cos(gather_phi(y_pred))))
-        MAE_phi += tf.reduce_sum(
-            tf.abs(tf.sin(gather_phi(y_true)) - tf.sin(gather_phi(y_pred))))
-
-        MAE_out = (MAE_p + MAE_phi) / (4. * N)
+        AE_p = self.D_2SQ * tf.reduce_sum(E_p(y_true, y_pred, ord=1))
+        AE_phi = tf.reduce_sum(E_phi(y_true, y_pred))
+        MAE_out = (AE_p + AE_phi) / (2. * N)
         return MAE_out
 
-    def _PINN_MSE(self, u_true, u_pred):
-        def _rescale(x):
-            abs_max = tf.reduce_max(tf.abs(x), axis=1)
-            output = x/tf.reshape(abs_max, (-1, 1))
-            return output
+    # def _MAE_2_normalized(self, y_true, y_pred):
+    #     # tf.shape for dynamic shape of Tensor
+    #     N = tf.cast(tf.shape(y_true)[0], tf.float32)
+    #     MAE_p = self.D_2SQ * \
+    #         tf.reduce_sum(tf.abs(gather_p(y_true) - gather_p(y_pred)))
+    #     MAE_phi = tf.reduce_sum(
+    #         tf.abs(tf.cos(gather_phi(y_true)) - tf.cos(gather_phi(y_pred))))
+    #     MAE_phi += tf.reduce_sum(
+    #         tf.abs(tf.sin(gather_phi(y_true)) - tf.sin(gather_phi(y_pred))))
 
-        def rescale_profile(inputs):
-            u_x, u_y = tf.split(inputs, 2, axis=1)
-            u_x = _rescale(u_x)
-            u_y = _rescale(u_y)
-            outputs = tf.concat([u_x, u_y], 1)
-            return outputs
+    #     MAE_out = (MAE_p + MAE_phi) / (4. * N)
+    #     return MAE_out
 
-        u_true = rescale_profile(u_true)
-        u_pred = rescale_profile(u_pred)
+    # def _PINN_MSE(self, u_true, u_pred):
+    #     def _rescale(x):
+    #         abs_max = tf.reduce_max(tf.abs(x), axis=1)
+    #         output = x/tf.reshape(abs_max, (-1, 1))
+    #         return output
 
-        return self.PINN_loss(u_true, u_pred)
+    #     def rescale_profile(inputs):
+    #         u_x, u_y = tf.split(inputs, 2, axis=1)
+    #         u_x = _rescale(u_x)
+    #         u_y = _rescale(u_y)
+    #         outputs = tf.concat([u_x, u_y], 1)
+    #         return outputs
+
+    #     u_true = rescale_profile(u_true)
+    #     u_pred = rescale_profile(u_pred)
+
+    #     return self.PINN_loss(u_true, u_pred)
 
     def evaluate_full(self, samples_u, samples_y):
         pred_y = self.predict(samples_u)
         pred_y = tf.convert_to_tensor(pred_y, dtype=tf.float32)
-        p_eval = E_p(samples_y, pred_y)
-        phi_eval = E_phi(samples_y, pred_y)
-        print(ME_p(samples_y, pred_y))
-        print(ME_phi(samples_y, pred_y))
-        print(ME_y(self.pfenv)(samples_y, pred_y))
+        true_y = tf.convert_to_tensor(samples_y, dtype=tf.float32)
+        p_eval = E_p(true_y, pred_y)
+        phi_eval = E_phi(true_y, pred_y)
+        print(ME_p(true_y, pred_y))
+        print(ME_phi(true_y, pred_y))
+        print(ME_y(self.pfenv)(true_y, pred_y))
         return p_eval, phi_eval
 
 
 class MLPHyperModel(HyperModel):
-    def __init__(self, pfenv, physics_informed=False, alpha=1):
+    def __init__(self, pfenv, physics_informed_phi=False, phi_gradient=True, window_size=1):
         self.pfenv = pfenv
-        self.physics_informed = physics_informed
-        self.alpha = alpha
+        self.physics_informed_phi = physics_informed_phi
+        self.phi_gradient = phi_gradient
+        self.window_size = window_size
 
     def build(self, hp):
         n_layers = hp.Int("num_hidden_layers", min_value=1,
@@ -265,8 +264,9 @@ class MLPHyperModel(HyperModel):
                                 min_value=32, max_value=1024, step=32, default=32))
         learning_rate = hp.Float("learning_rate", 1e-4, 1e-2, sampling='log')
 
-        mlp = MLP(self.pfenv, n_layers, units)
-        mlp.compile(learning_rate, self.physics_informed, self.alpha)
+        mlp = MLP(self.pfenv, n_layers, units, physics_informed_phi=self.physics_informed_phi,
+                  phi_gradient=self.phi_gradient, window_size=self.window_size)
+        mlp.compile(learning_rate)
 
         return mlp
 
@@ -286,15 +286,15 @@ class MLPTuner(kt.tuners.BayesianOptimization):
 def main():
     m = MLP(PotentialFlowEnv(sensor=SensorArray(8)))
 
-    y_true = tf.constant([[1., 1., 3], [2., 3., 3.]])
-    y_pred = tf.constant([[2., 3., 0.], [2., 3., 3.]])
+    y_true = tf.constant([[1., 1., 3.5]])
+    y_pred = tf.constant([[2., 3., 3.4]])
 
     print(potential_flow.ME_p(y_true, y_pred))
     print(potential_flow.ME_phi(y_true, y_pred))
     print(potential_flow.ME_phi(y_true, y_pred))
 
     print(potential_flow.MSE(y_true, y_pred))
-    print(m._MSE_normalized(y_true, y_pred))
+    print(m._MAE_normalized(y_true, y_pred))
 
 
 if __name__ == "__main__":

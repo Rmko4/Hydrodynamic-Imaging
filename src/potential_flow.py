@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 import sampling
 import matplotlib.pyplot as plt
-import poisson_disc
+from scipy.stats import binned_statistic_2d
 
 
 class SensorArray:
@@ -138,7 +138,7 @@ class PotentialFlowEnv:
     def rho(self, s, b, d):
         return (s - b) / d
 
-    def sample_snap_pairs(self, sensor: SensorArray = None, noise_stddev=0, min_distance=.1, k=30):
+    def sample_poisson_pairs(self, sensor: SensorArray = None, noise_stddev=0, min_distance=.1, k=30):
         if sensor is not None:
             self.sensor = sensor
         # Write to tensor array
@@ -190,8 +190,8 @@ def gather_phi(x):
     return tf.gather(x, indices=2, axis=-1)
 
 
-def ME_p(y_true, y_pred):
-    return tf.reduce_mean(E_p(y_true, y_pred))
+def ME_p(y_true, y_pred, ord='euclidean'):
+    return tf.reduce_mean(E_p(y_true, y_pred, ord=ord))
 
 
 def ME_phi(y_true, y_pred):
@@ -204,20 +204,53 @@ def ME_y(pfenv: PotentialFlowEnv):
     return ME_y
 
 
-def E_p(y_true, y_pred):
-    return tf.norm(gather_p(y_true) - gather_p(y_pred), axis=-1)
+def E_p(y_true, y_pred, ord='euclidean'):
+    return tf.norm(gather_p(y_true) - gather_p(y_pred), ord=ord, axis=-1)
 
 
 def E_phi(y_true, y_pred):
     phi_e = gather_phi(y_true) - gather_phi(y_pred)
     return tf.abs(tf.atan2(tf.sin(phi_e), tf.cos(phi_e)))
 
+def E_phi_2(y_true, y_pred):
+    phi_e = gather_phi(y_true) - gather_phi(y_pred)
+    phi_e = tf.math.mod(tf.abs(phi_e), 2 * np.pi)
+    return phi_e if phi_e < np.pi else 2 * np.pi - phi_e
+
 
 def MSE(y_true, y_pred):
     return tf.reduce_mean(tf.square(y_true - y_pred))
 
-def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval):
+
+def binned_stat(pfenv: PotentialFlowEnv, pos, values, statistic="median", cell_size=0.05):
+    x = pos[:, 0]
+    y = pos[:, 1]
+
+    dmn = pfenv.sample_domains
+
+    def bin_domain(dmn, cell_size):
+        nbins = int((dmn[1] - dmn[0]) / cell_size)
+        edges = np.linspace(dmn[0], dmn[1], nbins)
+        return edges
+
+    x_edges = bin_domain(dmn[0], cell_size)
+    y_edges = bin_domain(dmn[1], cell_size)
+
+    ret = binned_statistic_2d(x, y, values, statistic, bins=[x_edges, y_edges])
+
+    x_cross = (ret.x_edge + 0.5 * cell_size)[:-1]
+    y_cross = (ret.y_edge + 0.5 * cell_size)[:-1]
+    xv, yv = np.meshgrid(x_cross, y_cross)
+    xv = xv.transpose()
+    yv = yv.transpose()
+    zv = ret.statistic
+
+    return xv, yv, zv
+
+
+def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, cell_size=0.02):
     data = [p_eval, phi_eval/np.pi]
+    mesh_med = binned_stat(pfenv, y_bar, data, "median", cell_size=cell_size)
     titles = [r"$\mathrm{E}_\mathbf{p}$", r"$\mathrm{E}_\phi/\pi$"]
     fig, axes = plt.subplots(
         nrows=2, ncols=1, sharex=True, sharey=True, figsize=(9, 9))
@@ -225,10 +258,14 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval):
     axes[1].set_xlabel("x")
 
     for i in range(2):
-        axes[i].tricontour(y_bar[:, 0], y_bar[:, 1], data[i], linewidths=0.5,
-                           colors='k', levels=[0.0, 0.01, 0.03, 0.05, 0.1])
-        cntr = axes[i].tricontourf(y_bar[:, 0], y_bar[:, 1], data[i], levels=[
-            0.0, 0.01, 0.03, 0.05, 0.1])
+        axes[i].contour(mesh_med[0], mesh_med[1], mesh_med[2][i], linewidths=0.5,
+                        colors='k', levels=[0.0, 0.01, 0.03, 0.05, 0.1])
+        cntr = axes[i].contourf(mesh_med[0], mesh_med[1], mesh_med[2][i], levels=[
+                                0.0, 0.01, 0.03, 0.05, 0.1])
+        # axes[i].tricontour(y_bar[:, 0], y_bar[:, 1], data[i], linewidths=0.5,
+        #                    colors='k', levels=[0.0, 0.01, 0.03, 0.05, 0.1])
+        # cntr = axes[i].tricontourf(y_bar[:, 0], y_bar[:, 1], data[i], levels=[
+        #     0.0, 0.01, 0.03, 0.05, 0.1])
         axes[i].set_title(titles[i])
         axes[i].set_ylabel("y")
         axes[i].set_aspect("equal")
@@ -247,8 +284,11 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval):
 def main():
     tf.config.run_functions_eagerly(True)
 
-    print(ME_phi(tf.constant([0., 0., 1.5*np.pi]),
-                 tf.constant([0., 0., -np.pi])))
+    print(ME_phi(tf.constant([0., 0., -2.2*np.pi]),
+                 tf.constant([0., 0., 2.2*np.pi])))
+
+    print(E_phi_2(tf.constant([0., 0., -2.2*np.pi]),
+                 tf.constant([0., 0., 2.2*np.pi])))
 
     # pfenv = PotentialFlowEnv(sensor=SensorArray(1000, (-0.5, 0.5)))
     # y_bar = tf.constant([.5, .5, 2.])
