@@ -258,16 +258,18 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, c
     axes[1].set_xlabel("x")
 
     for i in range(2):
-        axes[i].contour(mesh_med[0], mesh_med[1], mesh_med[2][i], linewidths=0.5,
-                        colors='k', levels=[0.0, 0.01, 0.03, 0.05, 0.1])
-        cntr = axes[i].contourf(mesh_med[0], mesh_med[1], mesh_med[2][i], levels=[
-                                0.0, 0.01, 0.03, 0.05, 0.1])
+        levels = [0., 0.01, 0.02, 0.03, 0.04, 0.06, 0.08, 0.1]
+        cntr = axes[i].contour(mesh_med[0], mesh_med[1], mesh_med[2][i], linewidths=0.5,
+                        colors='k', levels=levels)
+        cntr2 = axes[i].contourf(mesh_med[0], mesh_med[1], mesh_med[2][i], levels=levels)
+        # levels=[0.0, 0.01, 0.03, 0.05, 0.1]
         # axes[i].tricontour(y_bar[:, 0], y_bar[:, 1], data[i], linewidths=0.5,
         #                    colors='k', levels=[0.0, 0.01, 0.03, 0.05, 0.1])
         # cntr = axes[i].tricontourf(y_bar[:, 0], y_bar[:, 1], data[i], levels=[
         #     0.0, 0.01, 0.03, 0.05, 0.1])
         axes[i].set_title(titles[i])
         axes[i].set_ylabel("y")
+        axes[i].clabel(cntr, inline=True, manual=True, colors='black')
         axes[i].set_aspect("equal")
         # SET equal aspect
         s_bar = pfenv.sensor()
@@ -275,7 +277,7 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, c
 
     fig.subplots_adjust(right=0.8)
     cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-    fig.colorbar(cntr, cax=cbar_ax)
+    fig.colorbar(cntr2, cax=cbar_ax)
 
     fig.suptitle("Multilayer Perceptron - Noise 1e-5")
     plt.show()

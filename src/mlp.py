@@ -68,7 +68,7 @@ class MLP(keras.Sequential):
         self.s_bar = pfenv.sensor()
         self.physics_informed_phi = physics_informed_phi
 
-        self.p_loss = self._MAE_normalized if phi_gradient else self._MAE_p_normalized
+        self.p_loss = self._MAE_2_normalized if phi_gradient else self._MAE_p_normalized
 
         if window_size == 1:
             input_shape = (2*tf.size(self.s_bar), )
@@ -185,7 +185,7 @@ class MLP(keras.Sequential):
     def _MSE_p_normalized(self, y_true, y_pred):
         # tf.shape for dynamic shape of Tensor
         N = tf.cast(tf.shape(y_true)[0], tf.float32)
-        MSE_p = self.D_2SQ * \
+        MSE_p = 2 * self.D_2SQ ** 2 * \
             tf.reduce_sum(tf.square(gather_p(y_true) - gather_p(y_pred)))
         MSE_out = MSE_p / (2. * N)
         return MSE_out
@@ -201,22 +201,22 @@ class MLP(keras.Sequential):
         # tf.shape for dynamic shape of Tensor
         N = tf.cast(tf.shape(y_true)[0], tf.float32)
         AE_p = self.D_2SQ * tf.reduce_sum(E_p(y_true, y_pred, ord=1))
-        AE_phi = tf.reduce_sum(E_phi(y_true, y_pred))
+        AE_phi = tf.reduce_sum(E_phi(y_true, y_pred)) / np.pi
         MAE_out = (AE_p + AE_phi) / (2. * N)
         return MAE_out
 
-    # def _MAE_2_normalized(self, y_true, y_pred):
-    #     # tf.shape for dynamic shape of Tensor
-    #     N = tf.cast(tf.shape(y_true)[0], tf.float32)
-    #     MAE_p = self.D_2SQ * \
-    #         tf.reduce_sum(tf.abs(gather_p(y_true) - gather_p(y_pred)))
-    #     MAE_phi = tf.reduce_sum(
-    #         tf.abs(tf.cos(gather_phi(y_true)) - tf.cos(gather_phi(y_pred))))
-    #     MAE_phi += tf.reduce_sum(
-    #         tf.abs(tf.sin(gather_phi(y_true)) - tf.sin(gather_phi(y_pred))))
+    def _MAE_2_normalized(self, y_true, y_pred):
+        # tf.shape for dynamic shape of Tensor
+        N = tf.cast(tf.shape(y_true)[0], tf.float32)
+        MAE_p = self.D_2SQ * \
+            tf.reduce_sum(tf.abs(gather_p(y_true) - gather_p(y_pred)))
+        MAE_phi = tf.reduce_sum(
+            tf.abs(tf.cos(gather_phi(y_true)) - tf.cos(gather_phi(y_pred))))
+        MAE_phi += tf.reduce_sum(
+            tf.abs(tf.sin(gather_phi(y_true)) - tf.sin(gather_phi(y_pred))))
 
-    #     MAE_out = (MAE_p + MAE_phi) / (4. * N)
-    #     return MAE_out
+        MAE_out = (MAE_p + MAE_phi) / (4. * N)
+        return MAE_out
 
     # def _PINN_MSE(self, u_true, u_pred):
     #     def _rescale(x):
@@ -261,7 +261,7 @@ class MLPHyperModel(HyperModel):
         units = []
         for i in range(n_layers):
             units.append(hp.Int("units_" + str(i),
-                                min_value=32, max_value=1024, step=32, default=32))
+                                min_value=32, max_value=2048, step=1, default=32))
         learning_rate = hp.Float("learning_rate", 1e-4, 1e-2, sampling='log')
 
         mlp = MLP(self.pfenv, n_layers, units, physics_informed_phi=self.physics_informed_phi,
@@ -274,8 +274,9 @@ class MLPHyperModel(HyperModel):
 class MLPTuner(kt.tuners.BayesianOptimization):
     def run_trial(self, trial, *fit_args, **fit_kwargs):
         hp = trial.hyperparameters
-        batch_size = hp.Int("batch_size", min_value=32,
-                            max_value=512, step=32, default=32)
+        batch_size = 2048
+        # hp.Int("batch_size", min_value=32,
+        #                     max_value=2048, step=32, default=32)
         fit_kwargs['batch_size'] = batch_size
         fit_kwargs['callbacks'] = [
             tf.keras.callbacks.EarlyStopping('val_ME_y', patience=5)]

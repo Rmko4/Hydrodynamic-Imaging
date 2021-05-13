@@ -73,7 +73,7 @@ def init_data(file_z, pfenv: PotentialFlowEnv, sensors: SensorArray, noise=1e-5,
     return samples_u, samples_y
 
 
-def find_best_model(pfenv, data, max_trials=10, max_epochs=100, validation_split=0.2):
+def find_best_model(pfenv, data, max_trials=10, max_epochs=500, validation_split=0.2):
     u, y = data
     hypermodel = MLPHyperModel(pfenv, False, True, 1)
     tuner = MLPTuner(hypermodel, objective=kerastuner.Objective(
@@ -100,7 +100,7 @@ def run_QM(pfenv: PotentialFlowEnv, data):
 
 def run_MLP(pfenv: PotentialFlowEnv, sensors: SensorArray, data, window_size=1):
     mlp = MLP(pfenv, 3, units=[512, 160, 32],
-              physics_informed_phi=False, phi_gradient=True, window_size=window_size, print_summary=True)
+              physics_informed_phi=True, phi_gradient=True, window_size=window_size, print_summary=True)
     mlp.compile(learning_rate=0.001)
     # logs = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
 
@@ -117,7 +117,7 @@ def run_MLP(pfenv: PotentialFlowEnv, sensors: SensorArray, data, window_size=1):
 
     else:
         samples_u, samples_y = data
-        mlp.fit(samples_u, samples_y, batch_size=128, validation_split=0.2, epochs=2,
+        mlp.fit(samples_u, samples_y, batch_size=128, validation_split=0.2, epochs=200,
                 callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)])
         file_name = FNAME_PREFIX + "2_" + str(SAMPLE_DISTS[1]) + FNAME_POSTFIX
         samples_u, samples_y = load_data(DATA_PATH + file_name)
@@ -138,7 +138,7 @@ def main():
     a_v = 0.05 * D
     W_v = 0.5 * D
 
-    sensors = SensorArray(N_SENSORS, (-0.5*D_sensors, 0.5*D_sensors))
+    sensors = SensorArray(N_SENSORS, (-D_sensors, D_sensors))
     pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors, a_v, W_v)
 
     # data_train = init_data("path_2500.0", pfenv, sensors, 1e-5)
@@ -175,7 +175,7 @@ def main():
     data = init_data(str(SAMPLE_DISTS[0]), pfenv, sensors, 1e-5, shuffle=True)
     # run_MLP(pfenv, sensors, data)
 
-    mlp = find_best_model(pfenv, data, max_trials=2, validation_split=0.1)
+    mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
     pass
     # run_QM(pfenv, data)
 
