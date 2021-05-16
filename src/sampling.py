@@ -5,6 +5,7 @@ from sklearn.metrics import pairwise_distances
 
 rng = np.random.default_rng()
 
+
 def uniform_hyper_sherical_annulus(size, center, inner_radius, outer_radius):
     n = center.shape[0]
     x_bar = rng.normal(size=(size, n))
@@ -82,9 +83,41 @@ def poisson_disc_sample(domains=np.array([[0., 1.0], [0., 1.0]]), r=0.05, k=30):
     return samples.finalize()
 
 
+def sample_path_on_pos(p_0, step_distance=.5,
+                       max_turn_angle=np.pi/4, n_fwd=4, n_bwd=15,
+                       inner_sampling_factor=1):
+    def forward(p, distance):
+        x = p[0] + distance * np.cos(p[2])
+        y = p[1] + distance * np.sin(p[2])
+        return np.array([x, y, p[2]])
+
+    n_paths = np.shape(p_0)[0]
+    path_len = n_fwd + n_bwd + 1
+
+    paths = np.zeros((n_paths, path_len, 3))
+
+    for i in range(n_paths):
+        x = p_0[i]
+        paths[i, n_bwd] = x
+        for j in range(n_bwd + 1, path_len):
+            for _ in range(inner_sampling_factor):
+                x = forward(x, step_distance)
+                x[2] = (x[2] + rng.uniform(-max_turn_angle,
+                                           max_turn_angle)) % (2*np.pi)
+            paths[i, j] = x
+        x = p_0[i]
+        for j in reversed(range(0, n_bwd)):
+            for _ in range(inner_sampling_factor):
+                x[2] = (x[2] + rng.uniform(-max_turn_angle,
+                                        max_turn_angle)) % (2*np.pi)
+                x = forward(x, -step_distance)
+            paths[i, j] = x
+    return paths
+
+
 def sample_path_2D(domains=np.array([[0., 1.0], [0., 1.0]]), step_distance=.05,
                    max_turn_angle=np.pi/4, circum_radius=None, n_samples=100,
-                   inner_sampling_factor=10, mode='rotate'):
+                   inner_sampling_factor=1, mode='rotate'):
 
     step_distance /= inner_sampling_factor
 
@@ -205,7 +238,7 @@ def sample_path_2D(domains=np.array([[0., 1.0], [0., 1.0]]), step_distance=.05,
         x = forward(x)
         x = boundary_f(x)
 
-        if i % 10 == 9:
+        if i % inner_sampling_factor == inner_sampling_factor - 1:
             path.append(x)
 
     return np.array(path)
@@ -252,7 +285,8 @@ def main():
     # samples_path = sample_path_2D(mode='rotate')
     # plot(samples_path)
 
-    samples = poisson_disc_sample(np.array([[0., 1.0], [0., 1.0], [0., 1.0]]), r=0.08)
+    samples = poisson_disc_sample(
+        np.array([[0., 1.0], [0., 1.0], [0., 1.0]]), r=0.08)
     # print(len(samples))
     # plot(samples)
     pass

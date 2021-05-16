@@ -19,26 +19,25 @@ FNAME_RES_POSTFIX = "_res.npz"
 D = .5
 Y_OFFSET = .025
 N_SENSORS = 8
-SAMPLE_DISTS = [0.015, 0.015]
+SAMPLE_DISTS = [0.05, 0.015]
 
 
-def gen_poisson_data_sets(pfenv: PotentialFlowEnv, sample_dists, noise=0):
-    for sample_dist in sample_dists:
-        samples_u, samples_y = pfenv.sample_poisson_pairs(
-            min_distance=sample_dist, noise_stddev=noise)
+def gen_poisson_data_sets(pfenv: PotentialFlowEnv, sample_dist, noise=0):
+    samples_u, samples_y = pfenv.sample_poisson(
+    min_distance=sample_dist, noise_stddev=noise)
 
-        print(sample_dist)
-        n_samples = len(samples_u)
-        print(n_samples)
-        if n_samples < 50000:
-            print_sample_metrics(samples_y, [(0, 2), (2, 3)])
+    print(sample_dist)
+    n_samples = len(samples_u)
+    print(n_samples)
+    if n_samples < 50000:
+        print_sample_metrics(samples_y, [(0, 2), (2, 3)])
 
-        file_name = "sample_pair" + "_" + str(sample_dist) + "_" + str(noise)
-        np.savez(DATA_PATH + file_name, samples_u, samples_y)
+    file_name = "sample_pair" + "_" + str(sample_dist) + "_" + str(noise)
+    np.savez(DATA_PATH + file_name, samples_u, samples_y)
 
 
 def gen_path_data_sets(pfenv: PotentialFlowEnv, duration, noise=0):
-    samples_u, samples_y = pfenv.sample_path_pairs(
+    samples_u, samples_y = pfenv.sample_path(
         duration=duration, noise_stddev=noise)
 
     print(duration)
@@ -68,7 +67,7 @@ def init_data(file_z, pfenv: PotentialFlowEnv, sensors: SensorArray, noise=1e-5,
     if plot:
         sampling.plot(samples_y)
 
-    samples_u = pfenv.sample_sensor(samples_y, sensors, noise_stddev=noise)
+    samples_u = pfenv.resample_sensor(samples_y, sensors, noise_stddev=noise)
 
     if shuffle:
         samples_u, samples_y = sk_shuffle(samples_u, samples_y)
@@ -124,7 +123,7 @@ def run_MLP(pfenv: PotentialFlowEnv, sensors: SensorArray, data, window_size=1):
                 callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)])
         file_name = FNAME_PREFIX + "2_" + str(SAMPLE_DISTS[1]) + FNAME_POSTFIX
         samples_u, samples_y = load_data(DATA_PATH + file_name)
-        samples_u = pfenv.sample_sensor(samples_y, sensors, noise_stddev=1e-5)
+        samples_u = pfenv.resample_sensor(samples_y, sensors, noise_stddev=1e-5)
 
         p_eval, phi_eval = mlp.evaluate_full(samples_u, samples_y)
 
@@ -172,15 +171,17 @@ def main():
     # data_gen_triple = (*split_window_generator(data_train, 5), window_generator(data_test, 5, shuffle=False))
     # run_MLP(pfenv, sensors, data_gen_triple, 5)
 
-    gen_path_data_sets(pfenv, 10.0, 0)
-    # gen_poisson_data_sets(pfenv, SAMPLE_DISTS, 0)
+    # gen_path_data_sets(pfenv, 10.0, 0)
+    # gen_poisson_data_sets(pfenv, SAMPLE_DISTS[0], 0)
 
-    # data = init_data(str(SAMPLE_DISTS[0]), pfenv, sensors, 1e-5, shuffle=True)
+    data = init_data(str(SAMPLE_DISTS[0]), pfenv, sensors, 1e-5, shuffle=True)
+    # x, y = pfenv.resample_poisson_to_path(data[1], sensors, noise_stddev=1e-5)
+    # sampling.plot(np.reshape(y, (-1, 3)))
     # run_MLP(pfenv, sensors, data)
 
     # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
     pass
-    # run_QM(pfenv, data)
+    run_QM(pfenv, data)
 
 
 if __name__ == "__main__":

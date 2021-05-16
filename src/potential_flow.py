@@ -138,7 +138,7 @@ class PotentialFlowEnv:
     def rho(self, s, b, d):
         return (s - b) / d
 
-    def sample_poisson_pairs(self, sensor: SensorArray = None, noise_stddev=0, min_distance=.1, k=30):
+    def sample_poisson(self, sensor: SensorArray = None, noise_stddev=0, min_distance=.1, k=30):
         if sensor is not None:
             self.sensor = sensor
         # Write to tensor array
@@ -147,22 +147,23 @@ class PotentialFlowEnv:
         samples_y[:, 2] = 2 * np.pi * \
             samples_y[:, 2] / (self.sample_domains[2, 1])
 
-        samples_u = self.sample_sensor(samples_y, self.sensor, noise_stddev)
+        samples_u = self.resample_sensor(samples_y, self.sensor, noise_stddev)
         return samples_u, samples_y
 
-    def sample_sensor(self, samples_y, sensor: SensorArray = None, noise_stddev=0):
+    def resample_sensor(self, samples_y, sensor: SensorArray = None, noise_stddev=0):
         if sensor is not None:
             self.sensor = sensor
 
+        samples_y = samples_y.reshape((-1, 3))
         samples_u = self(tf.constant(samples_y, tf.float32))
         gaus_noise = tf.random.normal(tf.shape(samples_u), 0, noise_stddev)
         samples_u += gaus_noise
 
         return samples_u.numpy()
 
-    def sample_path_pairs(self, sensor: SensorArray = None, noise_stddev=0,
-                          sampling_freq=2048.0, inner_sampling_factor=10, duration=20.0,
-                          max_turn_angle=np.pi/128, circum_radius=None, mode="rotate"):
+    def sample_path(self, sensor: SensorArray = None, noise_stddev=0,
+                    sampling_freq=2048.0, inner_sampling_factor=10, duration=20.0,
+                    max_turn_angle=np.pi/128, circum_radius=None, mode="rotate"):
         if sensor is not None:
             self.sensor = sensor
         n_samples = int(sampling_freq * duration)
@@ -172,7 +173,20 @@ class PotentialFlowEnv:
             circum_radius=circum_radius, inner_sampling_factor=inner_sampling_factor,
             n_samples=n_samples, mode=mode)
 
-        samples_u = self.sample_sensor(samples_y, self.sensor, noise_stddev)
+        samples_u = self.resample_sensor(samples_y, self.sensor, noise_stddev)
+        return samples_u, samples_y
+
+    def resample_poisson_to_path(self, samples_y, sensor: SensorArray = None,
+                                 noise_stddev=0, sampling_freq=2048.0,
+                                 inner_sampling_factor=10, n_fwd=4, n_bwd=15,
+                                 max_turn_angle=np.pi/128):
+        if sensor is not None:
+            self.sensor = sensor
+        step_distance = self.W.numpy() / sampling_freq
+        samples_y = sampling.sample_path_on_pos(samples_y, step_distance=step_distance, max_turn_angle=max_turn_angle,
+                                                n_fwd=n_fwd, n_bwd=n_bwd, inner_sampling_factor=inner_sampling_factor)
+
+        samples_u = self.resample_sensor(samples_y, self.sensor, noise_stddev)
         return samples_u, samples_y
 
     def initSensor(self, sensor):
@@ -212,6 +226,7 @@ def E_phi(y_true, y_pred):
     phi_e = gather_phi(y_true) - gather_phi(y_pred)
     return tf.abs(tf.atan2(tf.sin(phi_e), tf.cos(phi_e)))
 
+
 def E_phi_2(y_true, y_pred):
     phi_e = gather_phi(y_true) - gather_phi(y_pred)
     phi_e = tf.math.mod(tf.abs(phi_e), 2 * np.pi)
@@ -222,7 +237,7 @@ def MSE(y_true, y_pred):
     return tf.reduce_mean(tf.square(y_true - y_pred))
 
 
-def binned_stat(pfenv: PotentialFlowEnv, pos, values, statistic="median", cell_size=0.05):
+def binned_stat(pfenv: PotentialFlowEnv, pos, values, statistic="median", cell_size=0.02):
     x = pos[:, 0]
     y = pos[:, 1]
 
@@ -260,8 +275,9 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, c
     for i in range(2):
         levels = [0., 0.01, 0.02, 0.03, 0.04, 0.06, 0.08, 0.1]
         cntr = axes[i].contour(mesh_med[0], mesh_med[1], mesh_med[2][i], linewidths=0.5,
-                        colors='k', levels=levels)
-        cntr2 = axes[i].contourf(mesh_med[0], mesh_med[1], mesh_med[2][i], levels=levels)
+                               colors='k', levels=levels)
+        cntr2 = axes[i].contourf(
+            mesh_med[0], mesh_med[1], mesh_med[2][i], levels=levels)
         # levels=[0.0, 0.01, 0.03, 0.05, 0.1]
         # axes[i].tricontour(y_bar[:, 0], y_bar[:, 1], data[i], linewidths=0.5,
         #                    colors='k', levels=[0.0, 0.01, 0.03, 0.05, 0.1])
@@ -290,7 +306,7 @@ def main():
                  tf.constant([0., 0., 2.2*np.pi])))
 
     print(E_phi_2(tf.constant([0., 0., -2.2*np.pi]),
-                 tf.constant([0., 0., 2.2*np.pi])))
+                  tf.constant([0., 0., 2.2*np.pi])))
 
     # pfenv = PotentialFlowEnv(sensor=SensorArray(1000, (-0.5, 0.5)))
     # y_bar = tf.constant([.5, .5, 2.])

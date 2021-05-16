@@ -4,6 +4,8 @@ import numpy as np
 import tensorflow as tf
 from scipy.stats import circmean
 from scipy.optimize import curve_fit
+# from scipy.optimize._lsq.trf import trf_bounds
+# from scipy.optimize._numdiff import approx_derivative
 
 
 class QM:
@@ -75,7 +77,7 @@ class QM:
             d = 2 * (anch_plus - b) / 1.79
         else:
             d = (anch_plus - anch_min) / 1.79
-        
+
         d_min = self.pfenv.sample_domains[1, 0]
         d_max = self.pfenv.sample_domains[1, 1]
         if d > d_max:
@@ -83,14 +85,12 @@ class QM:
         elif d < d_min:
             d = d_min
 
-
         phi = self.phi_calc(u_bar, b, d)
         p0 = [b, d, phi]
         if curve_fit:
             y_bar = self.curve_fit_optimize(p0, u_bar, quad)
         else:
             y_bar = p0
-       
 
         return y_bar
 
@@ -100,12 +100,28 @@ class QM:
         scale = 1 / np.abs(quad).max()
         quad *= scale
         p_i = p0
+
+        # def func_wrapped(params):
+        #     return self.psi_quad_scaled_f(scale)(self.s_bar, *params) - quad
+
+        # def jac_wrapped(x, f):
+        #     J = approx_derivative(self.psi_quad_scaled_f(scale), x, rel_step=1e-3, method='2-point',
+        #                             f0=f, bounds=bounds)
+        #     if J.ndim != 2:  # J is guaranteed not sparse.
+        #         J = np.atleast_2d(J)
+
+        #     return J
+
+        # J0 = jac_wrapped(p_i, quad)
+
+        # d = trf_bounds(func_wrapped, jac_wrapped, p_i, quad, J0, bounds[0], bounds[1], 1e-08, 1e-03, 1e-08, 10,
+        #        np.array([1., 1., 1.]), None, 'exact', {}, 0)
         for _ in range(self.optimization_iter):
             # curve_fit uses version that does not raise error upon reaching iter beyond max_nfev
-            p_i, _ = curve_fit(self.psi_quad_scaled_f(scale), self.s_bar, quad, p0=p_i, method='trf', bounds=bounds, xtol=1e-3, diff_step=1e-3, max_nfev=10)
+            p_i, _ = curve_fit(self.psi_quad_scaled_f(scale), self.s_bar, quad, p0=p_i,
+                               method='trf', bounds=bounds, xtol=1e-3, diff_step=1e-3, max_nfev=10)
             p_i[2] = self.phi_calc(u_bar, p_i[0], p_i[1])
         return p_i
-        
 
     def predict(self, samples_u, curve_fit=True):
         samples_y = []
@@ -148,7 +164,7 @@ def main():
 
     # qm.phi_calc(result, .5, .5)
 
-    samples_u, samples_y = pfenv.sample_poisson_pairs(noise_stddev=1e-5)
+    samples_u, samples_y = pfenv.sample_poisson(noise_stddev=1e-5)
     # print(qm.psi_quad_env(pfenv.sensor().numpy(), samples_y[0][0].numpy(
     # ), samples_y[0][1].numpy(), samples_y[0][2].numpy()))
     # print(pfenv.forward_step(samples_y[0]))
