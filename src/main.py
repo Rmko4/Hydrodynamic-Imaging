@@ -46,6 +46,8 @@ def gen_path_data_sets(pfenv: PotentialFlowEnv, duration, noise=0):
     print(n_samples)
     if n_samples < 50000:
         print_sample_metrics(samples_y, [(0, 2), (2, 3)])
+    
+    sampling.plot(samples_y)
 
     file_name = "sample_pair_path_" + str(duration) + "_" + str(noise)
     np.savez(DATA_PATH + file_name, samples_u, samples_y)
@@ -99,8 +101,9 @@ def run_QM(pfenv: PotentialFlowEnv, data):
 
 
 def run_MLP(pfenv: PotentialFlowEnv, sensors: SensorArray, data, window_size=1):
-    mlp = MLP(pfenv, 3, units=[512, 160, 32],
-              physics_informed_phi=True, phi_gradient=True, window_size=window_size, print_summary=True)
+    # 5, units=[544, 1372, 1150, 2048, 1725]
+    mlp = MLP(pfenv, 3, units=[512, 160, 32], physics_informed_phi=False,
+              phi_gradient=True, window_size=window_size, print_summary=True)
     mlp.compile(learning_rate=0.001)
     # logs = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
 
@@ -169,13 +172,13 @@ def main():
     # data_gen_triple = (*split_window_generator(data_train, 5), window_generator(data_test, 5, shuffle=False))
     # run_MLP(pfenv, sensors, data_gen_triple, 5)
 
-    # gen_path_data_sets(pfenv, 2500.0, 0)
+    gen_path_data_sets(pfenv, 10.0, 0)
     # gen_poisson_data_sets(pfenv, SAMPLE_DISTS, 0)
 
-    data = init_data(str(SAMPLE_DISTS[0]), pfenv, sensors, 1e-5, shuffle=True)
+    # data = init_data(str(SAMPLE_DISTS[0]), pfenv, sensors, 1e-5, shuffle=True)
     # run_MLP(pfenv, sensors, data)
 
-    mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
+    # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
     pass
     # run_QM(pfenv, data)
 

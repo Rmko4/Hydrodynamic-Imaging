@@ -161,8 +161,8 @@ class PotentialFlowEnv:
         return samples_u.numpy()
 
     def sample_path_pairs(self, sensor: SensorArray = None, noise_stddev=0,
-                          sampling_freq=64.0, inner_sampling_factor=10, duration=20.0,
-                          max_turn_angle=np.pi/24, circum_radius=None, mode="rotate"):
+                          sampling_freq=2048.0, inner_sampling_factor=10, duration=20.0,
+                          max_turn_angle=np.pi/128, circum_radius=None, mode="rotate"):
         if sensor is not None:
             self.sensor = sensor
         n_samples = int(sampling_freq * duration)
