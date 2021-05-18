@@ -5,15 +5,18 @@ import tensorflow as tf
 from scipy.stats import circmean
 from scipy.optimize import curve_fit
 import scipy.signal as signal
+import sampling
 # from scipy.optimize._lsq.trf import trf_bounds
 # from scipy.optimize._numdiff import approx_derivative
 
 
 class QM:
-    def __init__(self, pfenv: PotentialFlowEnv, optimization_iter=5):
+    def __init__(self, pfenv: PotentialFlowEnv, optimization_iter=5, alpha=2.5e-9, beta=2.67e-10):
         self.pfenv = pfenv
         self.s_bar = pfenv.sensor().numpy()
         self.optimization_iter = optimization_iter
+        self.alpha = alpha
+        self.beta = beta
 
     def psi_quad(self, u_bar):
         u_xy = np.split(u_bar, 2)
@@ -60,7 +63,7 @@ class QM:
 
         return circmean(phi_estimates)
 
-    def _step_predict(self, u_bar_s, curve_fit=True, true_idx=-5, alpha=3.0e-9, beta=2e-10):
+    def _step_predict(self, u_bar_s, true_idx=-5, curve_fit=True):
         if u_bar_s.ndim != 1:
             win_len = np.shape(u_bar_s)[0]
             signal_len = np.shape(u_bar_s)[1]
@@ -69,17 +72,18 @@ class QM:
             # low_pass = signal.filtfilt(B,A, u_bar_s, axis=0)
             # u_bar = low_pass[-5]
             # u_bar = np.mean(u_bar_s, axis=0)
+
             u_bar = np.empty(signal_len)
-   
+            t = np.linspace(0, win_len - 1, win_len)
+
             for i in range(signal_len):
                 residual = 1
                 for j in range(win_len):
-                    t = np.linspace(0, win_len - 1, win_len)
                     res = np.polyfit(t, u_bar_s[:, i], j, full=True)
                     if res[1].size != 0:
                         delta_residual = residual - res[1][0]
                         residual = res[1][0]
-                        if delta_residual < beta and res[1][0] < alpha:
+                        if j != 0 and (delta_residual < self.beta or res[1][0] < self.alpha):
                             break
                     else:
                         p = np.poly1d(res[0])
@@ -160,23 +164,41 @@ class QM:
             p_i[2] = self.phi_calc(u_bar, p_i[0], p_i[1])
         return p_i
 
-    def predict(self, samples_u, curve_fit=True, true_idx=-5):
+    def predict(self, samples_u, true_idx=-5, curve_fit=True):
         samples_y = []
         for u_bar in samples_u:
-            y_bar = self._step_predict(u_bar, curve_fit, true_idx)
+            y_bar = self._step_predict(u_bar, true_idx, curve_fit)
             samples_y.append(y_bar)
 
         return np.array(samples_y)
 
-    def evaluate(self, samples_u, samples_y, curve_fit=True, true_idx=-5):
-        pred_y = self.predict(samples_u, curve_fit, true_idx)
+    def evaluate(self, samples_u, samples_y, true_idx=-5, curve_fit=True):
+        pred_y = self.predict(samples_u, true_idx, curve_fit)
         pred_y = tf.convert_to_tensor(pred_y, dtype=tf.float32)
-        p_eval = E_p(samples_y, pred_y) # Select correct pred_y out of complete signal
+        # Select correct pred_y out of complete signal
+        p_eval = E_p(samples_y, pred_y)
         phi_eval = E_phi(samples_y, pred_y)
         print(ME_p(samples_y, pred_y))
         print(ME_phi(samples_y, pred_y))
         print(ME_y(self.pfenv)(samples_y, pred_y))
         return p_eval, phi_eval
+
+    def search_best_model(self, samples_u, samples_y, true_idx=-5, params=[[2e-9, 2.5e-9, 3e-9, 3.5e-9, 4e-9], [1e-10, 1.33e-10, 1.67e-10, 2e-10, 2.33e-10, 2.67e-10, 3.0e-10]]):
+        alpha, beta = np.meshgrid(*params)
+        alpha = alpha.reshape(-1)
+        beta = beta.reshape(-1)
+        n_iters = alpha.size
+        indices = np.arange(n_iters)
+        sampling.rng.shuffle(indices)
+        for i in indices:
+            print(alpha[i])
+            print(beta[i])
+            self.alpha = alpha[i]
+            self.beta = beta[i]
+            self.evaluate(samples_u, samples_y, true_idx)
+            print()
+
+
 
 
 def main():

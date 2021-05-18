@@ -95,7 +95,8 @@ def find_best_model(pfenv, data, max_trials=10, max_epochs=500, validation_split
 def run_QM(pfenv: PotentialFlowEnv, data):
     samples_u, samples_y = data
     qm = QM(pfenv)
-    p_eval, phi_eval = qm.evaluate(samples_u, samples_y, True)
+    # qm.search_best_model(samples_u, samples_y)
+    p_eval, phi_eval = qm.evaluate(samples_u, samples_y)
     plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval)
 
 
@@ -175,60 +176,61 @@ def main():
     # gen_poisson_data_sets(pfenv, SAMPLE_DISTS[0], 0)
 
     _, samples_y = init_data(str(SAMPLE_DISTS[0]), pfenv, sensors, 1e-5, shuffle=True)
-    samples_y = np.array([[0.5, 0.5, 1.]])
+    # samples_y = np.array([[0.5, 0.5, 1.]])
     samples_u, y_path = pfenv.resample_poisson_to_path(samples_y, sensors, noise_stddev=1e-5, n_fwd=4, n_bwd=20)
     windowed_data = (samples_u, samples_y)
-    import matplotlib.pyplot as plt
-    import scipy.signal as signal
-    err = 0
+    # import matplotlib.pyplot as plt
+    # import scipy.signal as signal
+    # err = 0
     
-    for k in range(len(samples_u)):
-        u_bar_s = samples_u[k]
-        # plt.plot(u_bar_s[0], label='low')
-        # plt.plot(u_bar_s[-1], label='high')
-        # plt.plot(pfenv.v_np(pfenv.sensor(), *samples_y[0]), label="true")
-        # mavg = np.mean(u_bar_s, axis=0)
-        # plt.plot(mavg, label="mean")
-        # B, A = signal.butter(3, 0.1)
-        # low_pass = signal.filtfilt(B,A, u_bar_s, axis=0, padlen=3)
-        # plt.plot(low_pass[-5], label="low_pass")
-        u_real = pfenv(tf.constant(y_path[k], dtype=tf.float32)).numpy()
-        for i in range(16):
-            plt.plot(u_bar_s[:, i], label='signal')
-            plt.plot(u_real[:, i], label="true")
-            for j in range(4):
-                t = np.linspace(0, 24, 25)
-                res = np.polyfit(t, u_bar_s[:, i], j, full=True)
-                p = np.poly1d(res[0])
-                plt.plot(p(t), label=str(j))
+    # for k in range(len(samples_u)):
+    #     u_bar_s = samples_u[k]
+    #     # plt.plot(u_bar_s[0], label='low')
+    #     # plt.plot(u_bar_s[-1], label='high')
+    #     # plt.plot(pfenv.v_np(pfenv.sensor(), *samples_y[0]), label="true")
+    #     # mavg = np.mean(u_bar_s, axis=0)
+    #     # plt.plot(mavg, label="mean")
+    #     # B, A = signal.butter(3, 0.1)
+    #     # low_pass = signal.filtfilt(B,A, u_bar_s, axis=0, padlen=3)
+    #     # plt.plot(low_pass[-5], label="low_pass")
+    #     u_real = pfenv(tf.constant(y_path[k], dtype=tf.float32)).numpy()
+    #     for i in range(16):
+    #         plt.plot(u_bar_s[:, i], label='signal')
+    #         plt.plot(u_real[:, i], label="true")
+    #         for j in range(4):
+    #             t = np.linspace(0, 24, 25)
+    #             res = np.polyfit(t, u_bar_s[:, i], j, full=True)
+    #             p = np.poly1d(res[0])
+    #             plt.plot(p(t), label=str(j))
 
-            residual = 1
-            residuals = np.empty(20)
-            for j in range(0, 20):
-                t = np.linspace(0, 25 - 1, 25)
-                res = np.polyfit(t, u_bar_s[:, i], j, full=True)
-                if res[1].size != 0:
-                    delta_residual = residual - res[1][0]
-                    residual = res[1][0]
-                    residuals[j] = res[1][0] 
-                    if delta_residual < 2e-10 and res[1][0] < 3.0e-9:
-                        break
-                else:
-                    p = np.poly1d(res[0])
-                    break
-                p = np.poly1d(res[0])
-            err += np.sum(np.abs(p(t) - u_real[:, i]))
-            plt.plot(p(t), label=str("best fit") + str(j-1))
+    #         residual = 1
+    #         residuals = np.empty(20)
+    #         for j in range(0, 20):
+    #             t = np.linspace(0, 25 - 1, 25)
+    #             res = np.polyfit(t, u_bar_s[:, i], j, full=True)
+    #             if res[1].size != 0:
+    #                 delta_residual = residual - res[1][0]
+    #                 residual = res[1][0]
+    #                 residuals[j] = res[1][0] 
+    #                 if delta_residual < 2e-10 or res[1][0] < 3.0e-9:
+    #                     break
+    #             else:
+    #                 p = np.poly1d(res[0])
+    #                 break
+    #             p = np.poly1d(res[0])
+    #         err += np.sum(np.abs(p(t) - u_real[:, i]))
+    #         plt.plot(p(t), label=str("best fit") + str(j-1))
 
-            plt.legend()
-            plt.show()
-    print(err)
+    #         plt.legend()
+    #         plt.show()
+    # print(err)
 
     # sampling.plot(np.reshape(y_path, (-1, 3))[0:20])
     # run_MLP(pfenv, sensors, data)
 
     # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
     pass
+
     run_QM(pfenv, windowed_data)
 
 
