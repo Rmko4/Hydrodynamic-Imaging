@@ -4,6 +4,7 @@ import numpy as np
 import tensorflow as tf
 from scipy.stats import circmean
 from scipy.optimize import curve_fit
+import scipy.signal as signal
 # from scipy.optimize._lsq.trf import trf_bounds
 # from scipy.optimize._numdiff import approx_derivative
 
@@ -59,7 +60,43 @@ class QM:
 
         return circmean(phi_estimates)
 
-    def _step_predict(self, u_bar, curve_fit=True):
+    def _step_predict(self, u_bar_s, curve_fit=True, true_idx=-5, alpha=3.0e-9, beta=2e-10):
+        if u_bar_s.ndim != 1:
+            win_len = np.shape(u_bar_s)[0]
+            signal_len = np.shape(u_bar_s)[1]
+            # u_bar = signal.decimate(u_bar_s, win_len, axis=-1)
+            # B, A = signal.butter(3, 0.2)
+            # low_pass = signal.filtfilt(B,A, u_bar_s, axis=0)
+            # u_bar = low_pass[-5]
+            # u_bar = np.mean(u_bar_s, axis=0)
+            u_bar = np.empty(signal_len)
+   
+            for i in range(signal_len):
+                residual = 1
+                for j in range(win_len):
+                    t = np.linspace(0, win_len - 1, win_len)
+                    res = np.polyfit(t, u_bar_s[:, i], j, full=True)
+                    if res[1].size != 0:
+                        delta_residual = residual - res[1][0]
+                        residual = res[1][0]
+                        if delta_residual < beta and res[1][0] < alpha:
+                            break
+                    else:
+                        p = np.poly1d(res[0])
+                        break
+                    p = np.poly1d(res[0])
+                u_bar[i] = p(t[true_idx])
+
+                # for j in range(0, 20):
+                #     t = np.linspace(0, win_len - 1, win_len)
+                #     res = np.polyfit(t, u_bar_s[:, i], j, full=True)
+                #     if delta_residual < 2e-10 and res[1][0] < 2.5e-9:
+                #         break
+                #     p = np.poly1d(res[0])
+                # u_bar[i] = p(t[true_idx])
+        else:
+            u_bar = u_bar_s
+
         quad = self.psi_quad(u_bar)
         b_i = np.argmax(quad)
         b = self.s_bar[b_i]
@@ -123,18 +160,18 @@ class QM:
             p_i[2] = self.phi_calc(u_bar, p_i[0], p_i[1])
         return p_i
 
-    def predict(self, samples_u, curve_fit=True):
+    def predict(self, samples_u, curve_fit=True, true_idx=-5):
         samples_y = []
         for u_bar in samples_u:
-            y_bar = self._step_predict(u_bar, curve_fit)
+            y_bar = self._step_predict(u_bar, curve_fit, true_idx)
             samples_y.append(y_bar)
 
         return np.array(samples_y)
 
-    def evaluate(self, samples_u, samples_y, curve_fit=True):
-        pred_y = self.predict(samples_u, curve_fit)
+    def evaluate(self, samples_u, samples_y, curve_fit=True, true_idx=-5):
+        pred_y = self.predict(samples_u, curve_fit, true_idx)
         pred_y = tf.convert_to_tensor(pred_y, dtype=tf.float32)
-        p_eval = E_p(samples_y, pred_y)
+        p_eval = E_p(samples_y, pred_y) # Select correct pred_y out of complete signal
         phi_eval = E_phi(samples_y, pred_y)
         print(ME_p(samples_y, pred_y))
         print(ME_phi(samples_y, pred_y))

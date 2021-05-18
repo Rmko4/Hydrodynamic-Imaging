@@ -99,11 +99,7 @@ class PotentialFlowEnv:
 
         return tf.concat([v_x, v_y], 0)
 
-    def v_np(self, s, b, d, phi, y_bar=None):
-        if y_bar is not None:
-            b = y_bar[0]
-            d = y_bar[1]
-            phi = y_bar[2]
+    def v_np(self, s, b, d, phi):
         rho = (s - b) / d
 
         c = self.C_d.numpy() / d**3
@@ -187,6 +183,10 @@ class PotentialFlowEnv:
                                                 n_fwd=n_fwd, n_bwd=n_bwd, inner_sampling_factor=inner_sampling_factor)
 
         samples_u = self.resample_sensor(samples_y, self.sensor, noise_stddev)
+
+        new_shape = (-1, samples_y.shape[1], samples_u.shape[-1])
+        samples_u = samples_u.reshape(new_shape)
+
         return samples_u, samples_y
 
     def initSensor(self, sensor):
