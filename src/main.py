@@ -1,4 +1,5 @@
 import kerastuner
+from polyfit import reduce_polyfit
 import potential_flow as pf
 from potential_flow import PotentialFlowEnv, SensorArray, plot_prediction_contours
 from mlp import MLP, MLPHyperModel, MLPTuner
@@ -143,7 +144,28 @@ def main():
 
     sensors = SensorArray(N_SENSORS, (-D_sensors, D_sensors))
     pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors, a_v, W_v)
+    # Change noise to 1.5e-5 and a_v W_v to 0.01
+    _, samples_y = init_data(str(SAMPLE_DISTS[0]), pfenv, sensors, 1e-5, shuffle=True)
+    pfenv.resample_points_to_vibration(samples_y, sensors, noise_stddev=1.5e-5)
 
+    path_u, path_y = pfenv.resample_points_to_path(samples_y, sensors, noise_stddev=1e-5, n_fwd=4, n_bwd=20)
+    samples_u = reduce_polyfit(path_u, -5)
+    data = (samples_u, samples_y)
+
+    # run_MLP(pfenv, sensors, data)
+
+    # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
+    # pass
+
+    run_QM(pfenv, data)
+
+
+if __name__ == "__main__":
+    main()
+
+
+def out():
+    pass
     # data_train = init_data("path_2500.0", pfenv, sensors, 1e-5)
     # data_test = init_data("path_2_2500.0", pfenv, sensors, 1e-5)
 
@@ -175,10 +197,7 @@ def main():
     # gen_path_data_sets(pfenv, 10.0, 0)
     # gen_poisson_data_sets(pfenv, SAMPLE_DISTS[0], 0)
 
-    _, samples_y = init_data(str(SAMPLE_DISTS[0]), pfenv, sensors, 1e-5, shuffle=True)
-    # samples_y = np.array([[0.5, 0.5, 1.]])
-    samples_u, y_path = pfenv.resample_poisson_to_path(samples_y, sensors, noise_stddev=1e-5, n_fwd=4, n_bwd=20)
-    windowed_data = (samples_u, samples_y)
+
     # import matplotlib.pyplot as plt
     # import scipy.signal as signal
     # err = 0
@@ -194,45 +213,31 @@ def main():
     #     # low_pass = signal.filtfilt(B,A, u_bar_s, axis=0, padlen=3)
     #     # plt.plot(low_pass[-5], label="low_pass")
     #     u_real = pfenv(tf.constant(y_path[k], dtype=tf.float32)).numpy()
-    #     for i in range(16):
-    #         plt.plot(u_bar_s[:, i], label='signal')
-    #         plt.plot(u_real[:, i], label="true")
-    #         for j in range(4):
-    #             t = np.linspace(0, 24, 25)
-    #             res = np.polyfit(t, u_bar_s[:, i], j, full=True)
-    #             p = np.poly1d(res[0])
-    #             plt.plot(p(t), label=str(j))
+    #     for i in range(3):
+    #         plt.plot(u_bar_s[:, i], label='measured signal')
+    #         plt.plot(u_real[:, i], label="true signal")
+    #         t = np.linspace(0, 24, 25)
+    #         # for j in range(4):
+    #         #     res = np.polyfit(t, u_bar_s[:, i], j, full=True)
+    #         #     p = np.poly1d(res[0])
+    #         #     plt.plot(p(t), label=str(j))
 
     #         residual = 1
-    #         residuals = np.empty(20)
-    #         for j in range(0, 20):
-    #             t = np.linspace(0, 25 - 1, 25)
+    #         residuals = np.empty(4)
+    #         for j in [0, 1, 2, 3]:
     #             res = np.polyfit(t, u_bar_s[:, i], j, full=True)
-    #             if res[1].size != 0:
-    #                 delta_residual = residual - res[1][0]
-    #                 residual = res[1][0]
-    #                 residuals[j] = res[1][0] 
-    #                 if delta_residual < 2e-10 or res[1][0] < 3.0e-9:
-    #                     break
-    #             else:
+    #             delta_residual = residual - res[1][0]   
+    #             if j == 0 or (residual > 2.67e-9 and delta_residual > 3.25e-10 ):
     #                 p = np.poly1d(res[0])
-    #                 break
-    #             p = np.poly1d(res[0])
-    #         err += np.sum(np.abs(p(t) - u_real[:, i]))
-    #         plt.plot(p(t), label=str("best fit") + str(j-1))
+    #             residual = res[1][0]
+    #             residuals[j] = res[1][0] 
+    #         if residual > 5.75e-9:
+    #             plt.plot(u_bar_s[:, i], label=str("best fit - max"))
+    #         else:
+    #             plt.plot(p(t), label=str("best fit"))
 
     #         plt.legend()
     #         plt.show()
     # print(err)
 
     # sampling.plot(np.reshape(y_path, (-1, 3))[0:20])
-    # run_MLP(pfenv, sensors, data)
-
-    # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
-    pass
-
-    run_QM(pfenv, windowed_data)
-
-
-if __name__ == "__main__":
-    main()

@@ -45,35 +45,10 @@ class PotentialFlowEnv:
         self.C_d = 0.5 * W * tf.pow(a, 3.)
 
     def __call__(self, y: tf.Tensor):
-        return tf.vectorized_map(self.v_tf_vectorized, y)
+        return tf.vectorized_map(self.v_tf, y)
 
     @ tf.function
-    def v(self, s, y_bar):
-        b = y_bar[0]
-        d = y_bar[1]
-        phi = y_bar[2]
-
-        rho = (s - b) / d
-
-        c = self.C_d / tf.pow(d, 3.)
-
-        rho_sq = tf.square(rho)
-        denum = tf.pow(1 + rho_sq, 2.5)
-
-        Psi_e = (2 * rho_sq - 1) / denum
-        Psi_o = (-3 * rho) / denum
-        Psi_n = (2 - rho_sq) / denum
-
-        cos_phi = tf.cos(phi)
-        sin_phi = tf.sin(phi)
-
-        v_x = c * (Psi_e * cos_phi + Psi_o * sin_phi)
-        v_y = c * (Psi_o * cos_phi + Psi_n * sin_phi)
-
-        return v_x, v_y
-
-    @ tf.function
-    def v_tf_vectorized(self, y_bar):
+    def v_tf(self, y_bar):
         s = self.sensor()
 
         b = y_bar[0]
@@ -134,6 +109,12 @@ class PotentialFlowEnv:
     def rho(self, s, b, d):
         return (s - b) / d
 
+    def initSensor(self, sensor):
+        if sensor is None:
+            self.sensor = SensorArray()
+        else:
+            self.sensor = sensor
+
     def sample_poisson(self, sensor: SensorArray = None, noise_stddev=0, min_distance=.1, k=30):
         if sensor is not None:
             self.sensor = sensor
@@ -145,17 +126,6 @@ class PotentialFlowEnv:
 
         samples_u = self.resample_sensor(samples_y, self.sensor, noise_stddev)
         return samples_u, samples_y
-
-    def resample_sensor(self, samples_y, sensor: SensorArray = None, noise_stddev=0):
-        if sensor is not None:
-            self.sensor = sensor
-
-        samples_y = samples_y.reshape((-1, 3))
-        samples_u = self(tf.constant(samples_y, tf.float32))
-        gaus_noise = tf.random.normal(tf.shape(samples_u), 0, noise_stddev)
-        samples_u += gaus_noise
-
-        return samples_u.numpy()
 
     def sample_path(self, sensor: SensorArray = None, noise_stddev=0,
                     sampling_freq=2048.0, inner_sampling_factor=10, duration=20.0,
@@ -172,15 +142,28 @@ class PotentialFlowEnv:
         samples_u = self.resample_sensor(samples_y, self.sensor, noise_stddev)
         return samples_u, samples_y
 
-    def resample_poisson_to_path(self, samples_y, sensor: SensorArray = None,
-                                 noise_stddev=0, sampling_freq=2048.0,
-                                 inner_sampling_factor=10, n_fwd=4, n_bwd=15,
-                                 max_turn_angle=np.pi/128):
+    def resample_sensor(self, samples_y, sensor: SensorArray = None, noise_stddev=0):
+        if sensor is not None:
+            self.sensor = sensor
+
+        samples_y = samples_y.reshape((-1, 3))
+        samples_u = self(tf.constant(samples_y, tf.float32))
+        gaus_noise = tf.random.normal(tf.shape(samples_u), 0, noise_stddev)
+        samples_u += gaus_noise
+
+        return samples_u.numpy()
+
+    def resample_points_to_path(self, samples_y, sensor: SensorArray = None,
+                                noise_stddev=0, sampling_freq=2048.0,
+                                inner_sampling_factor=10, n_fwd=4, n_bwd=15,
+                                max_turn_angle=np.pi/128):
         if sensor is not None:
             self.sensor = sensor
         step_distance = self.W.numpy() / sampling_freq
-        samples_y = sampling.sample_path_on_pos(samples_y, step_distance=step_distance, max_turn_angle=max_turn_angle,
-                                                n_fwd=n_fwd, n_bwd=n_bwd, inner_sampling_factor=inner_sampling_factor)
+        samples_y = sampling.sample_path_on_pos(samples_y, step_distance=step_distance,
+                                                max_turn_angle=max_turn_angle,
+                                                n_fwd=n_fwd, n_bwd=n_bwd,
+                                                inner_sampling_factor=inner_sampling_factor)
 
         samples_u = self.resample_sensor(samples_y, self.sensor, noise_stddev)
 
@@ -189,11 +172,36 @@ class PotentialFlowEnv:
 
         return samples_u, samples_y
 
-    def initSensor(self, sensor):
-        if sensor is None:
-            self.sensor = SensorArray()
-        else:
+    def resample_points_to_vibration(self, samples_y, sensor: SensorArray = None,
+                                     noise_stddev=0, sampling_freq=2048, A=0.002,
+                                     f=45, duration=1):
+        if sensor is not None:
             self.sensor = sensor
+
+        t = np.linspace(0, duration, int(sampling_freq), endpoint=False)
+
+        def p(b, d, phi):
+            phase = np.sin(2 * np.pi * f * t)
+            b = b + A * np.cos(phi) * phase
+            d = d + A * np.sin(phi) * phase
+            return b, d
+
+        def w_magn(phi):
+            magn = 2 * np.pi * f * A * np.cos(2 * np.pi * f * t)
+            w = magn * np.sqrt(np.cos(phi)**2 + np.sin(phi)**2)
+            return w
+
+        for y_bar in samples_y:
+            b = y_bar[0]
+            d = y_bar[1]
+            phi = y_bar[2]
+
+            b_n, d_n = p(b, d, phi)
+            w_n = w_magn(phi)
+
+
+
+        return samples_u, samples_y
 
 
 def gather_p(x):
@@ -270,7 +278,7 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, c
     fig, axes = plt.subplots(
         nrows=2, ncols=1, sharex=True, sharey=True, figsize=(9, 9))
 
-    axes[1].set_xlabel("x")
+    axes[1].set_xlabel("x(m)")
 
     for i in range(2):
         levels = [0., 0.01, 0.02, 0.03, 0.04, 0.06, 0.08, 0.1]
@@ -284,7 +292,7 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, c
         # cntr = axes[i].tricontourf(y_bar[:, 0], y_bar[:, 1], data[i], levels=[
         #     0.0, 0.01, 0.03, 0.05, 0.1])
         axes[i].set_title(titles[i])
-        axes[i].set_ylabel("y")
+        axes[i].set_ylabel("y(m)")
         axes[i].clabel(cntr, inline=True, manual=True, colors='black')
         axes[i].set_aspect("equal")
         # SET equal aspect
@@ -295,7 +303,7 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, c
     cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
     fig.colorbar(cntr2, cax=cbar_ax)
 
-    fig.suptitle("Multilayer Perceptron - Noise 1e-5")
+    fig.suptitle("Quadrature Method - Windowed Path - Noise 1e-5")
     plt.show()
 
 

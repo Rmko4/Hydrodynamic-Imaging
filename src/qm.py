@@ -1,3 +1,4 @@
+from polyfit import reduce_polyfit
 from potential_flow import ME_phi, ME_p, ME_y, E_p, E_phi, PotentialFlowEnv, plot_prediction_contours
 from potential_flow import SensorArray
 import numpy as np
@@ -11,12 +12,10 @@ import sampling
 
 
 class QM:
-    def __init__(self, pfenv: PotentialFlowEnv, optimization_iter=5, alpha=2.5e-9, beta=2.67e-10):
+    def __init__(self, pfenv: PotentialFlowEnv, optimization_iter=5):
         self.pfenv = pfenv
         self.s_bar = pfenv.sensor().numpy()
         self.optimization_iter = optimization_iter
-        self.alpha = alpha
-        self.beta = beta
 
     def psi_quad(self, u_bar):
         u_xy = np.split(u_bar, 2)
@@ -63,44 +62,7 @@ class QM:
 
         return circmean(phi_estimates)
 
-    def _step_predict(self, u_bar_s, true_idx=-5, curve_fit=True):
-        if u_bar_s.ndim != 1:
-            win_len = np.shape(u_bar_s)[0]
-            signal_len = np.shape(u_bar_s)[1]
-            # u_bar = signal.decimate(u_bar_s, win_len, axis=-1)
-            # B, A = signal.butter(3, 0.2)
-            # low_pass = signal.filtfilt(B,A, u_bar_s, axis=0)
-            # u_bar = low_pass[-5]
-            # u_bar = np.mean(u_bar_s, axis=0)
-
-            u_bar = np.empty(signal_len)
-            t = np.linspace(0, win_len - 1, win_len)
-
-            for i in range(signal_len):
-                residual = 1
-                for j in range(win_len):
-                    res = np.polyfit(t, u_bar_s[:, i], j, full=True)
-                    if res[1].size != 0:
-                        delta_residual = residual - res[1][0]
-                        residual = res[1][0]
-                        if j != 0 and (delta_residual < self.beta or res[1][0] < self.alpha):
-                            break
-                    else:
-                        p = np.poly1d(res[0])
-                        break
-                    p = np.poly1d(res[0])
-                u_bar[i] = p(t[true_idx])
-
-                # for j in range(0, 20):
-                #     t = np.linspace(0, win_len - 1, win_len)
-                #     res = np.polyfit(t, u_bar_s[:, i], j, full=True)
-                #     if delta_residual < 2e-10 and res[1][0] < 2.5e-9:
-                #         break
-                #     p = np.poly1d(res[0])
-                # u_bar[i] = p(t[true_idx])
-        else:
-            u_bar = u_bar_s
-
+    def _step_predict(self, u_bar, curve_fit=True):
         quad = self.psi_quad(u_bar)
         b_i = np.argmax(quad)
         b = self.s_bar[b_i]
@@ -164,16 +126,16 @@ class QM:
             p_i[2] = self.phi_calc(u_bar, p_i[0], p_i[1])
         return p_i
 
-    def predict(self, samples_u, true_idx=-5, curve_fit=True):
+    def predict(self, samples_u, curve_fit=True):
         samples_y = []
         for u_bar in samples_u:
-            y_bar = self._step_predict(u_bar, true_idx, curve_fit)
+            y_bar = self._step_predict(u_bar, curve_fit)
             samples_y.append(y_bar)
 
         return np.array(samples_y)
 
-    def evaluate(self, samples_u, samples_y, true_idx=-5, curve_fit=True):
-        pred_y = self.predict(samples_u, true_idx, curve_fit)
+    def evaluate(self, samples_u, samples_y, curve_fit=True):
+        pred_y = self.predict(samples_u, curve_fit)
         pred_y = tf.convert_to_tensor(pred_y, dtype=tf.float32)
         # Select correct pred_y out of complete signal
         p_eval = E_p(samples_y, pred_y)
@@ -183,7 +145,7 @@ class QM:
         print(ME_y(self.pfenv)(samples_y, pred_y))
         return p_eval, phi_eval
 
-    def search_best_model(self, samples_u, samples_y, true_idx=-5, params=[[2e-9, 2.5e-9, 3e-9, 3.5e-9, 4e-9], [1e-10, 1.33e-10, 1.67e-10, 2e-10, 2.33e-10, 2.67e-10, 3.0e-10]]):
+    def search_best_model(self, path_u, samples_y, true_idx=-5, params=[[2.75e-9, 3e-9, 3.25e-9, 3.5e-9], [2.75e-10, 3.0e-10, 3.25e-10, 3.5e-10, 3.75e-10]]):
         alpha, beta = np.meshgrid(*params)
         alpha = alpha.reshape(-1)
         beta = beta.reshape(-1)
@@ -195,6 +157,7 @@ class QM:
             print(beta[i])
             self.alpha = alpha[i]
             self.beta = beta[i]
+            samples_u = reduce_polyfit(path_u, true_idx)
             self.evaluate(samples_u, samples_y, true_idx)
             print()
 
