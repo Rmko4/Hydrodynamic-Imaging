@@ -42,7 +42,9 @@ class PotentialFlowEnv:
 
         self.a = tf.constant(a)
         self.W = tf.constant(W)
-        self.C_d = 0.5 * W * tf.pow(a, 3.)
+        self.C_dw = 0.5 * tf.pow(a, 3.)
+        self.C_d = W * self.C_dw
+        
 
     def __call__(self, y: tf.Tensor):
         return tf.vectorized_map(self.v_tf, y)
@@ -58,6 +60,36 @@ class PotentialFlowEnv:
         rho = (s - b) / d
 
         c = self.C_d / tf.pow(d, 3.)
+
+        rho_sq = tf.square(rho)
+        denum = tf.pow(1 + rho_sq, 2.5)
+
+        Psi_e = (2 * rho_sq - 1) / denum
+        Psi_o = (-3 * rho) / denum
+        Psi_n = (2 - rho_sq) / denum
+
+        cos_phi = tf.cos(phi)
+        sin_phi = tf.sin(phi)
+
+        v_x = c * (Psi_e * cos_phi + Psi_o * sin_phi)
+        v_y = c * (Psi_o * cos_phi + Psi_n * sin_phi)
+
+        return tf.concat([v_x, v_y], 0)
+
+    def v_tf_g_vectorized(self, g: tf.Tensor):
+        return tf.vectorized_map(self.v_tf_g, g)
+
+    def v_tf_g(self, g_bar):
+        s = self.sensor()
+
+        b = g_bar[0]
+        d = g_bar[1]
+        phi = g_bar[2]
+        W = g_bar[3]
+
+        rho = (s - b) / d
+    
+        c =  W * self.C_dw / tf.pow(d, 3.)
 
         rho_sq = tf.square(rho)
         denum = tf.pow(1 + rho_sq, 2.5)
@@ -146,12 +178,20 @@ class PotentialFlowEnv:
         if sensor is not None:
             self.sensor = sensor
 
-        samples_y = samples_y.reshape((-1, 3))
-        samples_u = self(tf.constant(samples_y, tf.float32))
-        gaus_noise = tf.random.normal(tf.shape(samples_u), 0, noise_stddev)
-        samples_u += gaus_noise
+        flat_y = samples_y.reshape((-1, 3))
+        samples_u = self(tf.constant(flat_y, tf.float32)).numpy()
+        samples_u = self.apply_gauss_noise(samples_u, noise_stddev)
+        
+        new_shape = (*samples_y.shape[:-1], samples_u.shape[-1])
+        samples_u = samples_u.reshape(new_shape)
 
-        return samples_u.numpy()
+        return samples_u
+
+    def apply_gauss_noise(self, samples_u, noise_stddev=1.5e-5):
+        if noise_stddev != 0:
+            gaus_noise = sampling.rng.normal(0, noise_stddev, samples_u.shape)
+            return samples_u + gaus_noise
+        return samples_u
 
     def resample_points_to_path(self, samples_y, sensor: SensorArray = None,
                                 noise_stddev=0, sampling_freq=2048.0,
@@ -167,18 +207,19 @@ class PotentialFlowEnv:
 
         samples_u = self.resample_sensor(samples_y, self.sensor, noise_stddev)
 
-        new_shape = (-1, samples_y.shape[1], samples_u.shape[-1])
-        samples_u = samples_u.reshape(new_shape)
-
         return samples_u, samples_y
 
-    def resample_points_to_vibration(self, samples_y, sensor: SensorArray = None,
+    def resample_points_to_sinusoid(self, samples_y, sensor: SensorArray = None,
                                      noise_stddev=0, sampling_freq=2048, A=0.002,
-                                     f=45, duration=1):
+                                     f=45, duration=1, batch_size=4096, comp=None):
         if sensor is not None:
             self.sensor = sensor
 
+        window_len = duration * sampling_freq
         t = np.linspace(0, duration, int(sampling_freq), endpoint=False)
+        
+        hamm = np.hamming(window_len).reshape(-1, 1)
+        A_correction = 2 / np.sum(hamm)
 
         def p(b, d, phi):
             phase = np.sin(2 * np.pi * f * t)
@@ -186,20 +227,52 @@ class PotentialFlowEnv:
             d = d + A * np.sin(phi) * phase
             return b, d
 
-        def w_magn(phi):
+        def w_magn():
             magn = 2 * np.pi * f * A * np.cos(2 * np.pi * f * t)
-            w = magn * np.sqrt(np.cos(phi)**2 + np.sin(phi)**2)
-            return w
+            return magn
 
-        for y_bar in samples_y:
-            b = y_bar[0]
-            d = y_bar[1]
-            phi = y_bar[2]
+        W_n = w_magn()
 
-            b_n, d_n = p(b, d, phi)
-            w_n = w_magn(phi)
+        ds = tf.data.Dataset.from_tensor_slices(samples_y)
+        ds = ds.batch(batch_size)
 
+        samples_u = []
 
+        for batch_y in ds:
+            y_bar_s = []
+            for y_bar in batch_y:
+                b = y_bar[0]
+                d = y_bar[1]
+                phi = y_bar[2]
+
+                b_n, d_n = p(b, d, phi)
+                phi_n = np.repeat(phi, window_len)
+                g_bar = np.stack((b_n, d_n, phi_n, W_n), axis=-1)
+
+                g_bar = tf.constant(g_bar, dtype=tf.float32)
+                y_bar_s.append(g_bar)
+
+            y_bar_s = np.array(y_bar_s).reshape(-1, 4)
+            u_bar_s = self.v_tf_g_vectorized(y_bar_s).numpy()
+            u_bar_s = self.apply_gauss_noise(u_bar_s, noise_stddev)
+
+            u_bar_s = u_bar_s.reshape((-1, window_len, u_bar_s.shape[-1]))
+            hamm_u = hamm * u_bar_s
+
+            x = A_correction * np.fft.rfft(hamm_u, axis=1)[:, 45, :]
+
+            magn = np.abs(x)
+            phase = np.angle(x)
+
+            samples_u.append(np.sign(0.5 * np.pi - np.abs(phase)) * magn)
+        
+        samples_u = np.concatenate(samples_u)
+        # for i in range(100):
+        #     plt.plot(samples_u[i, :])
+        #     plt.plot(comp[i, :])
+        #     plt.hlines(0, 0, 15)
+        #     # plt.plot(hamm)
+        #     plt.show()
 
         return samples_u, samples_y
 

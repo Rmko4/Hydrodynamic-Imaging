@@ -13,19 +13,19 @@ from sampling import print_sample_metrics
 
 DATA_PATH = "sample_data/"
 RES_PATH = "results/"
-FNAME_PREFIX = "sample_pair_"
-FNAME_POSTFIX = "_0.npz"
+FNAME_PREFIX = "sample_pair_sinusoid_0.4w"
+FNAME_POSTFIX = "_1.5e-05.npz"
 FNAME_RES_POSTFIX = "_res.npz"
 
 D = .5
 Y_OFFSET = .025
 N_SENSORS = 8
-SAMPLE_DISTS = [0.05, 0.015]
+SAMPLE_DISTS = [0.015, 0.015]
 
 
 def gen_poisson_data_sets(pfenv: PotentialFlowEnv, sample_dist, noise=0):
     samples_u, samples_y = pfenv.sample_poisson(
-    min_distance=sample_dist, noise_stddev=noise)
+        min_distance=sample_dist, noise_stddev=noise)
 
     print(sample_dist)
     n_samples = len(samples_u)
@@ -46,10 +46,22 @@ def gen_path_data_sets(pfenv: PotentialFlowEnv, duration, noise=0):
     print(n_samples)
     if n_samples < 50000:
         print_sample_metrics(samples_y, [(0, 2), (2, 3)])
-    
+
     sampling.plot(samples_y)
 
     file_name = "sample_pair_path_" + str(duration) + "_" + str(noise)
+    np.savez(DATA_PATH + file_name, samples_u, samples_y)
+
+
+def gen_sinusoid_data_sets(pfenv: PotentialFlowEnv, sensors: SensorArray,
+                           sample_dist, A=0.002, f=45, noise=1.5e-5):
+    _, samples_y = init_data(
+        sample_dist, pfenv, sensors, noise=0, shuffle=True)
+
+    samples_u, samples_y = pfenv.resample_points_to_sinusoid(samples_y, noise_stddev=noise,
+                                                             A=A, f=f)
+
+    file_name = "sample_pair_sinusoid_0.4w2_" + sample_dist + "_" + str(noise)
     np.savez(DATA_PATH + file_name, samples_u, samples_y)
 
 
@@ -67,8 +79,9 @@ def init_data(file_z, pfenv: PotentialFlowEnv, sensors: SensorArray, noise=1e-5,
 
     if plot:
         sampling.plot(samples_y)
-
-    samples_u = pfenv.resample_sensor(samples_y, sensors, noise_stddev=noise)
+    
+    if noise != 0:
+        samples_u = pfenv.resample_sensor(samples_y, sensors, noise_stddev=noise)
 
     if shuffle:
         samples_u, samples_y = sk_shuffle(samples_u, samples_y)
@@ -102,8 +115,8 @@ def run_QM(pfenv: PotentialFlowEnv, data):
 
 
 def run_MLP(pfenv: PotentialFlowEnv, sensors: SensorArray, data, window_size=1):
-    # 5, units=[544, 1372, 1150, 2048, 1725]
-    mlp = MLP(pfenv, 3, units=[512, 160, 32], physics_informed_phi=False,
+    # 3, units=[512, 160, 32]
+    mlp = MLP(pfenv, 5, units=[544, 1372, 1150, 2048, 1725], physics_informed_phi=False,
               phi_gradient=True, window_size=window_size, print_summary=True)
     mlp.compile(learning_rate=0.001)
     # logs = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -121,11 +134,12 @@ def run_MLP(pfenv: PotentialFlowEnv, sensors: SensorArray, data, window_size=1):
 
     else:
         samples_u, samples_y = data
-        mlp.fit(samples_u, samples_y, batch_size=128, validation_split=0.2, epochs=200,
+        mlp.fit(samples_u, samples_y, batch_size=2048, validation_split=0.2, epochs=200,
                 callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)])
         file_name = FNAME_PREFIX + "2_" + str(SAMPLE_DISTS[1]) + FNAME_POSTFIX
         samples_u, samples_y = load_data(DATA_PATH + file_name)
-        samples_u = pfenv.resample_sensor(samples_y, sensors, noise_stddev=1e-5)
+        # samples_u = pfenv.resample_sensor(
+        #     samples_y, sensors, noise_stddev=1e-5)
 
         p_eval, phi_eval = mlp.evaluate_full(samples_u, samples_y)
 
@@ -139,25 +153,30 @@ def main():
     D_sensors = D
     dimensions = (2 * D, D)
     y_offset_v = Y_OFFSET
-    a_v = 0.05 * D
-    W_v = 0.5 * D
+    a_v = 0.01
+    f_v = 45
+    Amp_v = 0.002
+    W_v = 2 * np.pi * f_v * Amp_v
 
-    sensors = SensorArray(N_SENSORS, (-D_sensors, D_sensors))
+    sensors = SensorArray(N_SENSORS, (-0.4*D_sensors, 0.4*D_sensors))
     pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors, a_v, W_v)
+    # res = pfenv(tf.constant([[-0.3, 0.4, np.pi/4]]))
     # Change noise to 1.5e-5 and a_v W_v to 0.01
-    _, samples_y = init_data(str(SAMPLE_DISTS[0]), pfenv, sensors, 1e-5, shuffle=True)
-    pfenv.resample_points_to_vibration(samples_y, sensors, noise_stddev=1.5e-5)
 
-    path_u, path_y = pfenv.resample_points_to_path(samples_y, sensors, noise_stddev=1e-5, n_fwd=4, n_bwd=20)
-    samples_u = reduce_polyfit(path_u, -5)
-    data = (samples_u, samples_y)
+    # gen_sinusoid_data_sets(pfenv, sensors, str(SAMPLE_DISTS[0]))
+    data = init_data(str(SAMPLE_DISTS[0]), pfenv, sensors, noise=0, shuffle=True)
+    
 
-    # run_MLP(pfenv, sensors, data)
+    # path_u, path_y = pfenv.resample_points_to_path(samples_y, sensors, noise_stddev=1e-5, n_fwd=4, n_bwd=20)
+    # samples_u = reduce_polyfit(path_u, -5)
+    # data = (samples_u, samples_y)
+
+    run_MLP(pfenv, sensors, data)
 
     # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
     # pass
 
-    run_QM(pfenv, data)
+    # run_QM(pfenv, data)
 
 
 if __name__ == "__main__":
@@ -197,11 +216,10 @@ def out():
     # gen_path_data_sets(pfenv, 10.0, 0)
     # gen_poisson_data_sets(pfenv, SAMPLE_DISTS[0], 0)
 
-
     # import matplotlib.pyplot as plt
     # import scipy.signal as signal
     # err = 0
-    
+
     # for k in range(len(samples_u)):
     #     u_bar_s = samples_u[k]
     #     # plt.plot(u_bar_s[0], label='low')
@@ -226,11 +244,11 @@ def out():
     #         residuals = np.empty(4)
     #         for j in [0, 1, 2, 3]:
     #             res = np.polyfit(t, u_bar_s[:, i], j, full=True)
-    #             delta_residual = residual - res[1][0]   
+    #             delta_residual = residual - res[1][0]
     #             if j == 0 or (residual > 2.67e-9 and delta_residual > 3.25e-10 ):
     #                 p = np.poly1d(res[0])
     #             residual = res[1][0]
-    #             residuals[j] = res[1][0] 
+    #             residuals[j] = res[1][0]
     #         if residual > 5.75e-9:
     #             plt.plot(u_bar_s[:, i], label=str("best fit - max"))
     #         else:
