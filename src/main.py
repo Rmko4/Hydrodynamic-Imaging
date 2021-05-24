@@ -13,8 +13,10 @@ from sampling import print_sample_metrics
 
 DATA_PATH = "sample_data/"
 RES_PATH = "results/"
-FNAME_PREFIX = "sample_pair_sinusoid_0.4w"
-FNAME_POSTFIX = "_1.5e-05.npz"
+FNAME_PREFIX = "sample_pair_"
+FNAME_PREFIX_SIN = "sample_pair_sinusoid_0.4w_"
+FNAME_POSTFIX = ".npz"
+FNAME_POSTFIX_SIN = ".npz"
 FNAME_RES_POSTFIX = "_res.npz"
 
 D = .5
@@ -54,14 +56,15 @@ def gen_path_data_sets(pfenv: PotentialFlowEnv, duration, noise=0):
 
 
 def gen_sinusoid_data_sets(pfenv: PotentialFlowEnv, sensors: SensorArray,
-                           sample_dist, A=0.002, f=45, noise=1.5e-5):
+                           sample_dist, A=0.002, f=45, f_s=2048, duration=1, noise=1.5e-5):
     _, samples_y = init_data(
-        sample_dist, pfenv, sensors, noise=0, shuffle=True)
+        sample_dist, pfenv, sensors, noise=0, shuffle=False)
 
     samples_u, samples_y = pfenv.resample_points_to_sinusoid(samples_y, noise_stddev=noise,
-                                                             A=A, f=f)
+                                                             sampling_freq=f_s,
+                                                             A=A, f=f, duration=duration)
 
-    file_name = "sample_pair_sinusoid_0.4w2_" + sample_dist + "_" + str(noise)
+    file_name = "sample_pair_noisefloor_0.4w_" + sample_dist + "_" + str(noise)
     np.savez(DATA_PATH + file_name, samples_u, samples_y)
 
 
@@ -74,14 +77,15 @@ def load_data(file):
 
 
 def init_data(file_z, pfenv: PotentialFlowEnv, sensors: SensorArray, noise=1e-5, shuffle=False, plot=False):
-    file_name = FNAME_PREFIX + file_z + FNAME_POSTFIX
+    file_name = file_z + FNAME_POSTFIX
     samples_u, samples_y = load_data(DATA_PATH + file_name)
 
     if plot:
         sampling.plot(samples_y)
-    
+
     if noise != 0:
-        samples_u = pfenv.resample_sensor(samples_y, sensors, noise_stddev=noise)
+        samples_u = pfenv.resample_sensor(
+            samples_y, sensors, noise_stddev=noise)
 
     if shuffle:
         samples_u, samples_y = sk_shuffle(samples_u, samples_y)
@@ -153,25 +157,31 @@ def main():
     D_sensors = D
     dimensions = (2 * D, D)
     y_offset_v = Y_OFFSET
-    a_v = 0.01
+    a_v = 10e-3
     f_v = 45
-    Amp_v = 0.002
+    Amp_v = 2e-3
     W_v = 2 * np.pi * f_v * Amp_v
+    dur_v = 1
+    f_s_v = 2048
 
     sensors = SensorArray(N_SENSORS, (-0.4*D_sensors, 0.4*D_sensors))
-    pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors, a_v, W_v)
+    pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors, 0., W_v)
     # res = pfenv(tf.constant([[-0.3, 0.4, np.pi/4]]))
     # Change noise to 1.5e-5 and a_v W_v to 0.01
 
-    # gen_sinusoid_data_sets(pfenv, sensors, str(SAMPLE_DISTS[0]))
-    data = init_data(str(SAMPLE_DISTS[0]), pfenv, sensors, noise=0, shuffle=True)
-    
+    # gen_sinusoid_data_sets(pfenv, sensors, str(SAMPLE_DISTS[0]), A=Amp_v, f=f_v, duration=dur_v, f_s=f_s_v, noise=1.5e-5)
+    signal = init_data('sample_pair_sinusoid_0.4w_' +
+        str(SAMPLE_DISTS[0]) + '_0', pfenv, sensors, noise=0, shuffle=False)
 
+    noisy_signal = init_data('sample_pair_sinusoid_0.4w_' +
+        str(SAMPLE_DISTS[0]) + '_1.5e-05', pfenv, sensors, noise=0, shuffle=False)
+
+    pf.plot_snr(pfenv, 4, signal[1], signal[0], noisy_signal[0])
     # path_u, path_y = pfenv.resample_points_to_path(samples_y, sensors, noise_stddev=1e-5, n_fwd=4, n_bwd=20)
     # samples_u = reduce_polyfit(path_u, -5)
     # data = (samples_u, samples_y)
 
-    run_MLP(pfenv, sensors, data)
+    # run_MLP(pfenv, sensors, data)
 
     # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
     # pass

@@ -345,7 +345,8 @@ def binned_stat(pfenv: PotentialFlowEnv, pos, values, statistic="median", cell_s
 
 
 def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, cell_size=0.02):
-    data = [p_eval, phi_eval/np.pi]
+    # data = [p_eval, phi_eval/np.pi]
+    data = [p_eval, phi_eval]
     mesh_med = binned_stat(pfenv, y_bar, data, "median", cell_size=cell_size)
     titles = [r"$\mathrm{E}_\mathbf{p}$", r"$\mathrm{E}_\phi/\pi$"]
     fig, axes = plt.subplots(
@@ -354,7 +355,8 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, c
     axes[1].set_xlabel("x(m)")
 
     for i in range(2):
-        levels = [0., 0.01, 0.02, 0.03, 0.04, 0.06, 0.08, 0.1]
+        levels = [0, 10, 30, 50, 70, 90]
+        # levels = [0., 0.01, 0.02, 0.03, 0.04, 0.06, 0.08, 0.1]
         cntr = axes[i].contour(mesh_med[0], mesh_med[1], mesh_med[2][i], linewidths=0.5,
                                colors='k', levels=levels)
         cntr2 = axes[i].contourf(
@@ -379,6 +381,24 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, c
     fig.suptitle("Quadrature Method - Windowed Path - Noise 1e-5")
     plt.show()
 
+def plot_snr(pfenv: PotentialFlowEnv, sensor_i, y_bar, signal, noisy_signal):
+    n_sensors = len(pfenv.sensor())
+    sensor_i_2 = n_sensors + sensor_i
+    def snr(signal, noisy_signal, index):
+        signal = signal[:, index]
+        noise = np.abs(signal - noisy_signal[:, index])
+        signal = np.abs(signal)
+        snr = 10 * np.log10(signal / noise)
+
+        # signal = np.abs(signal[:, index])
+        # noise = np.abs(noisy_signal[:, index])
+        # snr = 10 * np.log10(signal / noise)
+        return snr
+    x_snr = snr(signal, noisy_signal, sensor_i)
+    y_snr = snr(signal, noisy_signal, sensor_i_2)
+
+    plot_prediction_contours(pfenv, y_bar, x_snr, y_snr)
+    pass
 
 def main():
     tf.config.run_functions_eagerly(True)
