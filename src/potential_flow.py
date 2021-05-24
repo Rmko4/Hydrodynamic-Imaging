@@ -44,7 +44,6 @@ class PotentialFlowEnv:
         self.W = tf.constant(W)
         self.C_dw = 0.5 * tf.pow(a, 3.)
         self.C_d = W * self.C_dw
-        
 
     def __call__(self, y: tf.Tensor):
         return tf.vectorized_map(self.v_tf, y)
@@ -88,8 +87,8 @@ class PotentialFlowEnv:
         W = g_bar[3]
 
         rho = (s - b) / d
-    
-        c =  W * self.C_dw / tf.pow(d, 3.)
+
+        c = W * self.C_dw / tf.pow(d, 3.)
 
         rho_sq = tf.square(rho)
         denum = tf.pow(1 + rho_sq, 2.5)
@@ -181,7 +180,7 @@ class PotentialFlowEnv:
         flat_y = samples_y.reshape((-1, 3))
         samples_u = self(tf.constant(flat_y, tf.float32)).numpy()
         samples_u = self.apply_gauss_noise(samples_u, noise_stddev)
-        
+
         new_shape = (*samples_y.shape[:-1], samples_u.shape[-1])
         samples_u = samples_u.reshape(new_shape)
 
@@ -210,28 +209,24 @@ class PotentialFlowEnv:
         return samples_u, samples_y
 
     def resample_points_to_sinusoid(self, samples_y, sensor: SensorArray = None,
-                                     noise_stddev=0, sampling_freq=2048, A=0.002,
-                                     f=45, duration=1, batch_size=4096, comp=None):
+                                    noise_stddev=0, sampling_freq=2048, A=0.002,
+                                    f=45, duration=1, batch_size=4096, comp=None):
         if sensor is not None:
             self.sensor = sensor
 
         window_len = duration * sampling_freq
         t = np.linspace(0, duration, int(sampling_freq), endpoint=False)
-        
+
+        phase_p = np.sin(2 * np.pi * f * t)
+        W_n = 2 * np.pi * f * A * np.cos(2 * np.pi * f * t)
+
         hamm = np.hamming(window_len).reshape(-1, 1)
         A_correction = 2 / np.sum(hamm)
 
         def p(b, d, phi):
-            phase = np.sin(2 * np.pi * f * t)
-            b = b + A * np.cos(phi) * phase
-            d = d + A * np.sin(phi) * phase
+            b = b + A * np.cos(phi) * phase_p
+            d = d + A * np.sin(phi) * phase_p
             return b, d
-
-        def w_magn():
-            magn = 2 * np.pi * f * A * np.cos(2 * np.pi * f * t)
-            return magn
-
-        W_n = w_magn()
 
         ds = tf.data.Dataset.from_tensor_slices(samples_y)
         ds = ds.batch(batch_size)
@@ -259,13 +254,13 @@ class PotentialFlowEnv:
             u_bar_s = u_bar_s.reshape((-1, window_len, u_bar_s.shape[-1]))
             hamm_u = hamm * u_bar_s
 
-            x = A_correction * np.fft.rfft(hamm_u, axis=1)[:, 45, :]
+            x = A_correction * np.fft.rfft(hamm_u, axis=1)[:, f, :]
 
             magn = np.abs(x)
             phase = np.angle(x)
 
             samples_u.append(np.sign(0.5 * np.pi - np.abs(phase)) * magn)
-        
+
         samples_u = np.concatenate(samples_u)
         # for i in range(100):
         #     plt.plot(samples_u[i, :])
@@ -344,19 +339,37 @@ def binned_stat(pfenv: PotentialFlowEnv, pos, values, statistic="median", cell_s
     return xv, yv, zv
 
 
-def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, cell_size=0.02):
-    # data = [p_eval, phi_eval/np.pi]
-    data = [p_eval, phi_eval]
-    mesh_med = binned_stat(pfenv, y_bar, data, "median", cell_size=cell_size)
+def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval,
+                             title="Quadrature Method - Windowed Path - Noise 1e-5"):
+    data = [p_eval, phi_eval/np.pi]
+    levels = [0., 0.01, 0.02, 0.03, 0.04, 0.06, 0.08, 0.1]
     titles = [r"$\mathrm{E}_\mathbf{p}$", r"$\mathrm{E}_\phi/\pi$"]
+    suptitle = title
+    cell_size = 0.02
+
+    plot_contours(pfenv, y_bar, data, cell_size, levels=levels,
+                  suptitle=suptitle, titles=titles)
+
+
+def plot_snr_contours(pfenv: PotentialFlowEnv, y_bar, x_snr, y_snr):
+    data = [x_snr, y_snr]
+    levels = [0, 10, 30, 50, 70, 90]
+    titles = [r"$v_x(\mathrm{dB})$", r"$v_y(\mathrm{dB})$"]
+    suptitle = "Signal to noise ratio (SNR)"
+    cell_size = 0.02
+
+    plot_contours(pfenv, y_bar, data, cell_size, levels=levels,
+                  suptitle=suptitle, titles=titles)
+
+
+def plot_contours(pfenv: PotentialFlowEnv, y_bar, data, cell_size, levels, suptitle=None, titles=None):
+    mesh_med = binned_stat(pfenv, y_bar, data, "median", cell_size=cell_size)
     fig, axes = plt.subplots(
         nrows=2, ncols=1, sharex=True, sharey=True, figsize=(9, 9))
 
     axes[1].set_xlabel("x(m)")
 
     for i in range(2):
-        levels = [0, 10, 30, 50, 70, 90]
-        # levels = [0., 0.01, 0.02, 0.03, 0.04, 0.06, 0.08, 0.1]
         cntr = axes[i].contour(mesh_med[0], mesh_med[1], mesh_med[2][i], linewidths=0.5,
                                colors='k', levels=levels)
         cntr2 = axes[i].contourf(
@@ -378,17 +391,19 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, c
     cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
     fig.colorbar(cntr2, cax=cbar_ax)
 
-    fig.suptitle("Quadrature Method - Windowed Path - Noise 1e-5")
+    fig.suptitle(suptitle)
     plt.show()
+
 
 def plot_snr(pfenv: PotentialFlowEnv, sensor_i, y_bar, signal, noisy_signal):
     n_sensors = len(pfenv.sensor())
     sensor_i_2 = n_sensors + sensor_i
-    def snr(signal, noisy_signal, index):
-        signal = signal[:, index]
-        noise = np.abs(signal - noisy_signal[:, index])
-        signal = np.abs(signal)
-        snr = 10 * np.log10(signal / noise)
+
+    def snr(sig, noise_sig, index):
+        sig = sig[:, index]
+        noise = np.abs(sig - noise_sig[:, index])
+        sig = np.abs(sig)
+        snr = 10 * np.log10(sig / noise)
 
         # signal = np.abs(signal[:, index])
         # noise = np.abs(noisy_signal[:, index])
@@ -397,8 +412,9 @@ def plot_snr(pfenv: PotentialFlowEnv, sensor_i, y_bar, signal, noisy_signal):
     x_snr = snr(signal, noisy_signal, sensor_i)
     y_snr = snr(signal, noisy_signal, sensor_i_2)
 
-    plot_prediction_contours(pfenv, y_bar, x_snr, y_snr)
+    plot_snr_contours(pfenv, y_bar, x_snr, y_snr)
     pass
+
 
 def main():
     tf.config.run_functions_eagerly(True)
