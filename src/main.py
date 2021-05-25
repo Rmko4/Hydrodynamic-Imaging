@@ -121,10 +121,11 @@ def run_QM(pfenv: PotentialFlowEnv, data):
 
 
 def run_MLP(pfenv: PotentialFlowEnv, sensors: SensorArray, data, window_size=1):
-    # 5, units=[544, 1372, 1150, 2048, 1725]
-    mlp = MLP(pfenv, 3, units=[512, 160, 32] , physics_informed_phi=False,
-              phi_gradient=True, window_size=window_size, print_summary=True)
-    mlp.compile(learning_rate=1e-4)
+    # 3, units=[512, 160, 32]
+    mlp = MLP(pfenv, 5, units=[544, 1372, 1150, 2048, 1725], physics_informed_u=False,
+              physics_informed_phi=False, phi_gradient=True, window_size=window_size,
+              print_summary=True)
+    mlp.compile(learning_rate=1e-3)
     # logs = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
 
     # tboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logs,
@@ -141,7 +142,16 @@ def run_MLP(pfenv: PotentialFlowEnv, sensors: SensorArray, data, window_size=1):
     else:
         samples_u, samples_y = data
         mlp.fit(samples_u, samples_y, batch_size=2048, validation_split=0.2, epochs=200,
-                callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)])
+                callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=5)])
+        file_name = 'sample_pair_sinusoid_0.4w_' + '2_' + \
+            str(SAMPLE_DISTS[0]) + '_1.5e-05' + FNAME_POSTFIX
+        samples_u2, samples_y2 = load_data(DATA_PATH + file_name)
+        p_eval, phi_eval = mlp.evaluate_full(samples_u2, samples_y2)
+        plot_prediction_contours(pfenv, samples_y2, p_eval, phi_eval)
+        mlp.physics_informed_u = True
+        mlp.compile(learning_rate=1e-4)
+        mlp.fit(samples_u, samples_y, batch_size=2048, validation_split=0.2, epochs=200,
+                callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=100)])
         file_name = 'sample_pair_sinusoid_0.4w_' + '2_' + \
             str(SAMPLE_DISTS[0]) + '_1.5e-05' + FNAME_POSTFIX
         samples_u, samples_y = load_data(DATA_PATH + file_name)
@@ -150,8 +160,8 @@ def run_MLP(pfenv: PotentialFlowEnv, sensors: SensorArray, data, window_size=1):
 
         p_eval, phi_eval = mlp.evaluate_full(samples_u, samples_y)
 
-    file_name = FNAME_PREFIX + "2_" + str(SAMPLE_DISTS[1]) + FNAME_RES_POSTFIX
-    np.savez(RES_PATH + file_name, p_eval, phi_eval, samples_y)
+    # file_name = FNAME_PREFIX + "2_" + str(SAMPLE_DISTS[1]) + FNAME_RES_POSTFIX
+    # np.savez(RES_PATH + file_name, p_eval, phi_eval, samples_y)
 
     plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval)
 

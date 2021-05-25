@@ -60,15 +60,18 @@ class CubicRootNormalize(keras.layers.Layer):
 
 
 class MLP(keras.Sequential):
-
-    def __init__(self, pfenv: PotentialFlowEnv, n_layers=1, units=[256], physics_informed_phi=False, phi_gradient=True, window_size=1, print_summary=True):
+    # physics_informed = [False, "phi", "u"]
+    def __init__(self, pfenv: PotentialFlowEnv, n_layers=1, units=[256],
+                 physics_informed_u=False, physics_informed_phi=False,
+                 phi_gradient=True, alpha=1, window_size=1, print_summary=True):
         super(MLP, self).__init__()
-
         self.pfenv = pfenv
         self.s_bar = pfenv.sensor()
+        self.alpha = alpha
+        self.physics_informed_u = physics_informed_u
         self.physics_informed_phi = physics_informed_phi
 
-        self.p_loss = self._MAE_2_normalized if phi_gradient else self._MAE_p_normalized
+        self.p_loss = self._MAE_normalized if phi_gradient else self._MAE_p_normalized
 
         if window_size == 1:
             input_shape = (2*tf.size(self.s_bar), )
@@ -126,19 +129,19 @@ class MLP(keras.Sequential):
             # Compute the loss values
             # (the loss function is configured in `compile()`)
             loss_y = self.compiled_loss(y, y_pred)
-
             # tf.print(loss_y)
-            # if self.physics_informed_phi:
-            #     # Forward pass of the potential flow model.
-            #     u_pred=self.pfenv(y_pred)
-            #     loss_u=self._PINN_MSE(u, u_pred)
-            #     # Summing losses for single gradient.
-            #     # tf.print(loss_u)
-            #     loss=(loss_y + self.alpha * loss_u) / (1 + self.alpha)
-            # else:
-            #     loss=loss_y
+            if self.physics_informed_u:
+                # Forward pass of the potential flow model.
+                u_pred = self.pfenv(y_pred)
+                u_true = self.pfenv(y)
 
-            loss = loss_y
+                loss_u = self._PINN_MSE(u_true, u_pred)
+                # Summing losses for single gradient.
+                # tf.print(loss_u)
+                loss = loss_u
+            else:
+                loss = loss_y
+
         # Compute gradients
         trainable_vars = self.trainable_variables
         gradients = tape.gradient(loss, trainable_vars)
@@ -218,23 +221,23 @@ class MLP(keras.Sequential):
         MAE_out = (MAE_p + MAE_phi) / (4. * N)
         return MAE_out
 
-    # def _PINN_MSE(self, u_true, u_pred):
-    #     def _rescale(x):
-    #         abs_max = tf.reduce_max(tf.abs(x), axis=1)
-    #         output = x/tf.reshape(abs_max, (-1, 1))
-    #         return output
+    def _PINN_MSE(self, u_true, u_pred):
+        def _rescale(x):
+            abs_max = tf.reduce_max(tf.abs(x), axis=1)
+            output = x/tf.reshape(abs_max, (-1, 1))
+            return output
 
-    #     def rescale_profile(inputs):
-    #         u_x, u_y = tf.split(inputs, 2, axis=1)
-    #         u_x = _rescale(u_x)
-    #         u_y = _rescale(u_y)
-    #         outputs = tf.concat([u_x, u_y], 1)
-    #         return outputs
+        def rescale_profile(inputs):
+            u_x, u_y = tf.split(inputs, 2, axis=1)
+            u_x = _rescale(u_x)
+            u_y = _rescale(u_y)
+            outputs = tf.concat([u_x, u_y], 1)
+            return outputs
 
-    #     u_true = rescale_profile(u_true)
-    #     u_pred = rescale_profile(u_pred)
+        u_true = rescale_profile(u_true)
+        u_pred = rescale_profile(u_pred)
 
-    #     return self.PINN_loss(u_true, u_pred)
+        return keras.losses.MAE(u_true, u_pred)
 
     def evaluate_full(self, samples_u, samples_y):
         pred_y = self.predict(samples_u)
