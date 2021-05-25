@@ -106,8 +106,7 @@ class MLP(keras.Sequential):
             outputs = tf.concat([outputs, tf.reshape(phi, [-1, 1])], axis=-1)
         return outputs
 
-    def compile(self, learning_rate=1e-3,
-                optimizer=keras.optimizers.Adam(learning_rate=1e-3)):
+    def compile(self, optimizer=keras.optimizers.Adam(learning_rate=1e-3)):
         super(MLP, self).compile(
             optimizer=optimizer,  # Optimizer
             # Loss function to minimize

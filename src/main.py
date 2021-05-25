@@ -23,7 +23,7 @@ FNAME_RES_POSTFIX = "_res.npz"
 D = .5
 Y_OFFSET = .025
 N_SENSORS = 8
-SAMPLE_DISTS = [0.02, 0.015]
+SAMPLE_DISTS = [0.015, 0.015]
 
 
 def gen_poisson_data_sets(pfenv: PotentialFlowEnv, sample_dist, noise=0):
@@ -126,7 +126,7 @@ def run_MLP(pfenv: PotentialFlowEnv, sensors: SensorArray, data, window_size=1):
     mlp = MLP(pfenv, 5, units=[544, 1372, 1150, 2048, 1725], physics_informed_u=False,
               physics_informed_phi=False, phi_gradient=True, window_size=window_size,
               print_summary=True)
-    mlp.compile(learning_rate=1e-4)
+    mlp.compile()
     # logs = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
 
     # tboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logs,
@@ -150,7 +150,7 @@ def run_MLP(pfenv: PotentialFlowEnv, sensors: SensorArray, data, window_size=1):
         p_eval, phi_eval = mlp.evaluate_full(samples_u2, samples_y2)
         plot_prediction_contours(pfenv, samples_y2, p_eval, phi_eval)
         mlp.physics_informed_u = True
-        mlp.compile(learning_rate=2e-5, optimizer=keras.optimizers.Adam(learning_rate=2e-5))
+        mlp.compile(optimizer=keras.optimizers.Adam(learning_rate=2e-5))
         mlp.fit(samples_u, samples_y, batch_size=2048, validation_split=0.2, epochs=200,
                 callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)])
         file_name = 'sample_pair_sinusoid_0.4w_' + '2_' + \
@@ -195,12 +195,12 @@ def main():
     # samples_u = reduce_polyfit(path_u, -5)
     # data = (samples_u, samples_y)
 
-    # run_MLP(pfenv, sensors, noisy_signal)
+    run_MLP(pfenv, sensors, noisy_signal)
 
     # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
     # pass
 
-    run_QM(pfenv, noisy_signal)
+    # run_QM(pfenv, noisy_signal)
 
 
 if __name__ == "__main__":

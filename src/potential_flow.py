@@ -105,6 +105,23 @@ class PotentialFlowEnv:
 
         return tf.concat([v_x, v_y], 0)
 
+    # def v_tf_vec(self, w, p):
+    #     s = self.sensor()
+
+    #     zeros = tf.repeat(0., tf.size(s))
+    #     s = tf.stack((zeros, s), axis=-1)
+
+    #     r = s - p
+    #     r_norm = tf.norm(r, axis=1)
+    #     v = tf.reshape(self.C_dw / tf.pow(r_norm, 3.), (-1, 1))
+    #     dot = tf.reduce_sum(w * r, axis=1)
+    #     dot = tf.reshape(dot / tf.pow(r_norm, 2.), (-1, 1))
+    #     dot = 3 * r * dot
+    #     v *= dot - w
+
+    #     v = tf.reshape(tf.transpose(v), (-1,))
+    #     return v
+
     def v_np(self, s, b, d, phi):
         rho = (s - b) / d
 
@@ -420,15 +437,23 @@ def plot_snr(pfenv: PotentialFlowEnv, sensor_i, y_bar, signal, noisy_signal):
 def main():
     tf.config.run_functions_eagerly(True)
 
-    print(ME_phi(tf.constant([0., 0., -2.2*np.pi]),
-                 tf.constant([0., 0., 2.2*np.pi])))
 
-    print(E_phi_2(tf.constant([0., 0., -2.2*np.pi]),
-                  tf.constant([0., 0., 2.2*np.pi])))
 
-    # pfenv = PotentialFlowEnv(sensor=SensorArray(1000, (-0.5, 0.5)))
-    # y_bar = tf.constant([.5, .5, 2.])
+    # print(ME_phi(tf.constant([0., 0., -2.2*np.pi]),
+    #              tf.constant([0., 0., 2.2*np.pi])))
 
+    # print(E_phi_2(tf.constant([0., 0., -2.2*np.pi]),
+    #               tf.constant([0., 0., 2.2*np.pi])))
+
+    pfenv = PotentialFlowEnv(sensor=SensorArray(10, (-0.5, 0.5)))
+    y_bar = tf.constant([.5, .5, 0.5*np.pi])
+    # w = tf.constant([np.cos(0.5 * np.pi), np.sin(0.5 * np.pi)], dtype=tf.float32)
+    # g_bar = tf.concat((y_bar, [1.]), axis=-1)
+    # print(pfenv.v_tf_g(g_bar))
+    # print(pfenv.v_tf_vec(w, y_bar[0:2]))
+    # plt.plot(pfenv.v_tf_vec(w, y_bar[0:2]))
+    # plt.plot(pfenv.v_tf_g(g_bar))
+    # plt.show()
     # print(y_bar)
     # print(pfenv(tf.constant([[.5, .5, 2.]])))
 
