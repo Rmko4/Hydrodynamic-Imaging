@@ -340,9 +340,10 @@ def binned_stat(pfenv: PotentialFlowEnv, pos, values, statistic="median", cell_s
 
 
 def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval,
-                             title="Quadrature Method - Windowed Path - Noise 1e-5"):
+                             title="Quadrature Method - Windowed Path - Noise 1.5e-5"):
     data = [p_eval, phi_eval/np.pi]
-    levels = [0., 0.01, 0.02, 0.03, 0.04, 0.06, 0.08, 0.1]
+    # levels = [0., 0.01, 0.02, 0.03, 0.04, 0.06, 0.08, 0.1]
+    levels = [0., 0.01, 0.03, 0.05, 0.09]
     titles = [r"$\mathrm{E}_\mathbf{p}$", r"$\mathrm{E}_\phi/\pi$"]
     suptitle = title
     cell_size = 0.02

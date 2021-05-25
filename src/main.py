@@ -8,6 +8,7 @@ import sampling
 import numpy as np
 from datetime import datetime
 import tensorflow as tf
+from tensorflow import keras
 from sklearn.utils import shuffle as sk_shuffle
 from sampling import print_sample_metrics
 
@@ -125,7 +126,7 @@ def run_MLP(pfenv: PotentialFlowEnv, sensors: SensorArray, data, window_size=1):
     mlp = MLP(pfenv, 5, units=[544, 1372, 1150, 2048, 1725], physics_informed_u=False,
               physics_informed_phi=False, phi_gradient=True, window_size=window_size,
               print_summary=True)
-    mlp.compile(learning_rate=1e-3)
+    mlp.compile(learning_rate=1e-4)
     # logs = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
 
     # tboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logs,
@@ -142,16 +143,16 @@ def run_MLP(pfenv: PotentialFlowEnv, sensors: SensorArray, data, window_size=1):
     else:
         samples_u, samples_y = data
         mlp.fit(samples_u, samples_y, batch_size=2048, validation_split=0.2, epochs=200,
-                callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=5)])
+                callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)])
         file_name = 'sample_pair_sinusoid_0.4w_' + '2_' + \
             str(SAMPLE_DISTS[0]) + '_1.5e-05' + FNAME_POSTFIX
         samples_u2, samples_y2 = load_data(DATA_PATH + file_name)
         p_eval, phi_eval = mlp.evaluate_full(samples_u2, samples_y2)
         plot_prediction_contours(pfenv, samples_y2, p_eval, phi_eval)
         mlp.physics_informed_u = True
-        mlp.compile(learning_rate=1e-4)
+        mlp.compile(learning_rate=2e-5, optimizer=keras.optimizers.Adam(learning_rate=2e-5))
         mlp.fit(samples_u, samples_y, batch_size=2048, validation_split=0.2, epochs=200,
-                callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=100)])
+                callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)])
         file_name = 'sample_pair_sinusoid_0.4w_' + '2_' + \
             str(SAMPLE_DISTS[0]) + '_1.5e-05' + FNAME_POSTFIX
         samples_u, samples_y = load_data(DATA_PATH + file_name)

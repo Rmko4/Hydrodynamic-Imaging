@@ -71,7 +71,7 @@ class MLP(keras.Sequential):
         self.physics_informed_u = physics_informed_u
         self.physics_informed_phi = physics_informed_phi
 
-        self.p_loss = self._MAE_normalized if phi_gradient else self._MAE_p_normalized
+        self.y_loss = self._MAE_normalized if phi_gradient else self._MAE_p_normalized
 
         if window_size == 1:
             input_shape = (2*tf.size(self.s_bar), )
@@ -106,13 +106,13 @@ class MLP(keras.Sequential):
             outputs = tf.concat([outputs, tf.reshape(phi, [-1, 1])], axis=-1)
         return outputs
 
-    def compile(self, learning_rate=1e-3):
+    def compile(self, learning_rate=1e-3,
+                optimizer=keras.optimizers.Adam(learning_rate=1e-3)):
         super(MLP, self).compile(
-            optimizer=keras.optimizers.Adam(
-                learning_rate=learning_rate),  # Optimizer
+            optimizer=optimizer,  # Optimizer
             # Loss function to minimize
             # MSE_y
-            loss=self.p_loss,
+            loss=self.y_loss,
             # List of metrics to monitor
             metrics=[potential_flow.ME_p, potential_flow.ME_phi,
                      potential_flow.ME_y(self.pfenv)],
@@ -138,7 +138,7 @@ class MLP(keras.Sequential):
                 loss_u = self._PINN_MSE(u_true, u_pred)
                 # Summing losses for single gradient.
                 # tf.print(loss_u)
-                loss = loss_u
+                loss = (loss_y + self.alpha * loss_u) / (1 + self.alpha)
             else:
                 loss = loss_y
 
@@ -222,20 +222,20 @@ class MLP(keras.Sequential):
         return MAE_out
 
     def _PINN_MSE(self, u_true, u_pred):
-        def _rescale(x):
-            abs_max = tf.reduce_max(tf.abs(x), axis=1)
-            output = x/tf.reshape(abs_max, (-1, 1))
-            return output
+        # def _rescale(x):
+        #     abs_max = tf.reduce_max(tf.abs(x), axis=1)
+        #     output = x/tf.reshape(abs_max, (-1, 1))
+        #     return output
 
-        def rescale_profile(inputs):
-            u_x, u_y = tf.split(inputs, 2, axis=1)
-            u_x = _rescale(u_x)
-            u_y = _rescale(u_y)
-            outputs = tf.concat([u_x, u_y], 1)
-            return outputs
+        # def rescale_profile(inputs):
+        #     u_x, u_y = tf.split(inputs, 2, axis=1)
+        #     u_x = _rescale(u_x)
+        #     u_y = _rescale(u_y)
+        #     outputs = tf.concat([u_x, u_y], 1)
+        #     return outputs
 
-        u_true = rescale_profile(u_true)
-        u_pred = rescale_profile(u_pred)
+        # u_true = rescale_profile(u_true)
+        # u_pred = rescale_profile(u_pred)
 
         return keras.losses.MAE(u_true, u_pred)
 

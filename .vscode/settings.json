@@ -1,5 +1,5 @@
 {
-    "python.pythonPath": "C:\\Users\\Remco\\AppData\\Local\\Programs\\Python\\Python39\\python.exe",
+    "python.pythonPath": "/bin/python",
     "python.linting.pylintEnabled": true,
     "python.linting.enabled": false,
     "python.linting.banditEnabled": false
