@@ -421,7 +421,7 @@ def plot_snr(pfenv: PotentialFlowEnv, sensor_i, y_bar, signal, noisy_signal):
         sig = sig[:, index]
         noise = np.abs(sig - noise_sig[:, index])
         sig = np.abs(sig)
-        snr = 10 * np.log10(sig / noise)
+        snr = 20 * np.log10(sig / noise)
 
         # signal = np.abs(signal[:, index])
         # noise = np.abs(noisy_signal[:, index])
