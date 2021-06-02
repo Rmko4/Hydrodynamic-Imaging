@@ -278,7 +278,7 @@ def print_mean_min_distance(samples):
     pwd = pairwise_distances(samples)
     np.fill_diagonal(pwd, np.inf)
     pwd_min = pwd.min(0)
-    print(np.mean(pwd.min(0)))
+    print(np.mean(pwd_min))
 
 
 def main():

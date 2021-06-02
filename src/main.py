@@ -184,18 +184,18 @@ def main():
     # Change noise to 1.5e-5 and a_v W_v to 0.01
 
     # gen_sinusoid_data_sets(pfenv, sensors, SAMPLE_DISTS[0], A=Amp_v, f=f_v, duration=dur_v, f_s=f_s_v, noise=1.5e-5)
-    signal = init_data('sample_pair_sinusoid_0.4w_' +
-         str(SAMPLE_DISTS[0]) + '_0', pfenv, sensors, noise=0, shuffle=False)
+    # signal = init_data('sample_pair_sinusoid_0.4w_' +
+    #      str(SAMPLE_DISTS[0]) + '_0', pfenv, sensors, noise=0, shuffle=False)
 
-    noisy_signal = init_data('sample_pair_sinusoid_0.4w_' +
-                             str(SAMPLE_DISTS[0]) + '_1.5e-05', pfenv, sensors, noise=0, shuffle=False)
+    # noisy_signal = init_data('sample_pair_sinusoid_0.4w_' +
+    #                          str(SAMPLE_DISTS[0]) + '_1.5e-05', pfenv, sensors, noise=0, shuffle=False)
 
-    pf.plot_snr(pfenv, 4, signal[1], signal[0], noisy_signal[0])
+    # pf.plot_snr(pfenv, 4, signal[1], signal[0], noisy_signal[0])
     # path_u, path_y = pfenv.resample_points_to_path(samples_y, sensors, noise_stddev=1e-5, n_fwd=4, n_bwd=20)
     # samples_u = reduce_polyfit(path_u, -5)
     # data = (samples_u, samples_y)
 
-    run_MLP(pfenv, sensors, noisy_signal)
+    # run_MLP(pfenv, sensors, noisy_signal)
 
     # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
     # pass

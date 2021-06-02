@@ -335,6 +335,7 @@ def binned_stat(pfenv: PotentialFlowEnv, pos, values, statistic="median", cell_s
     y = pos[:, 1]
 
     dmn = pfenv.sample_domains
+    dmn[1][0] = dmn[1][0] - cell_size/1.05
 
     def bin_domain(dmn, cell_size):
         nbins = int((dmn[1] - dmn[0]) / cell_size)
@@ -431,7 +432,6 @@ def plot_snr(pfenv: PotentialFlowEnv, sensor_i, y_bar, signal, noisy_signal):
     y_snr = snr(signal, noisy_signal, sensor_i_2)
 
     plot_snr_contours(pfenv, y_bar, x_snr, y_snr)
-    pass
 
 
 def main():
