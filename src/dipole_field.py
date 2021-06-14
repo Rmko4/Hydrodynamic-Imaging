@@ -23,7 +23,10 @@ def plot_dipole_field():
     # lines = np.linspace(0., 1., 20)
     # seed_points = np.array([lines, lines])
     # start_points=seed_points.T
-    plt.streamplot(X, Y, U, V, density=1.8, color='grey',
+
+    plt.figure(figsize=(3.5,3.5), dpi=200)
+
+    plt.streamplot(X, Y, U, V, density=1.7, color='grey',
                    linewidth=lw, arrowsize=.7, zorder=-1)
     plt.scatter([0], [0], color='black', s=100., zorder=1)
     plt.scatter([0], [0], color='grey', s=60., zorder=2)
@@ -39,10 +42,11 @@ def plot_dipole_field():
         left=False,
         labelbottom=False,
         labelleft=False)
-
+    plt.tight_layout()
     plt.show()
     pass
 
 
 if __name__ == "__main__":
     plot_dipole_field()
+=
