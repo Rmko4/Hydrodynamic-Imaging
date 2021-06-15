@@ -303,7 +303,7 @@ class PotentialFlowEnv:
 
         ax.spines['left'].set_position('center')
         ax.spines['right'].set_color('none')
-        ax.spines.left.set_bounds((0, 0.54))
+        ax.spines.left.set_bounds((0, 0.535))
 
         s_bar = self.sensor()
         plt.scatter(s_bar, np.zeros((len(s_bar), )), s=16, zorder=-2)
@@ -320,9 +320,9 @@ class PotentialFlowEnv:
                   head_width=0.015, head_length=0.03, fc='black', zorder=-1)
 
         plt.vlines(p[0], 0, p[1], linestyles='dashed',
-                   colors='black', zorder=-1)
+                   colors='black', linewidth=1, zorder=-1)
         plt.hlines(p[1], 0, p[0] + 0.1, linestyles='dashed',
-                   colors='black', zorder=-1)
+                   colors='black', linewidth=1, zorder=-1)
 
         plt.xticks([-0.5, -0.2, 0., p[0], 0.2, 0.5],
                    ['-500', '-200', '$O$', '$b$', '200', '500'])
@@ -355,7 +355,7 @@ class PotentialFlowEnv:
         plt.annotate(text='', xy=(self.domains[0, 0], 0.545), xytext=(
             self.domains[0, 1], 0.545), arrowprops=dict(arrowstyle='<->'))
         plt.annotate('500 mm', (-0.46, 0.21), rotation=90)
-        plt.annotate('1000 mm', (-0.05, 0.565))
+        plt.annotate('1000 mm', (-0.08, 0.565))
 
         plt.xlabel(r'$x(\mathrm{mm}) \longrightarrow$')
         plt.ylabel(r'$y(\mathrm{mm}) \longrightarrow$')
