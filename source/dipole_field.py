@@ -1,6 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
-
+from utils.mpl_import import plt
 
 def plot_dipole_field():
     slc = slice(-.5, .5, 100j)
@@ -23,8 +22,6 @@ def plot_dipole_field():
     # lines = np.linspace(0., 1., 20)
     # seed_points = np.array([lines, lines])
     # start_points=seed_points.T
-
-    plt.figure(figsize=(3.5,3.5), dpi=200)
 
     plt.streamplot(X, Y, U, V, density=1.7, color='grey',
                    linewidth=lw, arrowsize=.7, zorder=-1)
@@ -49,4 +46,3 @@ def plot_dipole_field():
 
 if __name__ == "__main__":
     plot_dipole_field()
-=

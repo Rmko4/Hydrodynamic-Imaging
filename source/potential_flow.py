@@ -1,9 +1,12 @@
 # Use the full module location. Unfortunately it is aliased.
 
+from matplotlib import patches
 import tensorflow as tf
 import numpy as np
 import sampling
-import matplotlib.pyplot as plt
+
+from utils.mpl_import import plt
+
 from scipy.stats import binned_statistic_2d
 
 
@@ -37,7 +40,7 @@ class PotentialFlowEnv:
         x = [-self.dimensions[0]/2, self.dimensions[0]/2]
         y = [self.y_offset, self.y_offset + self.dimensions[1]]
         phi = [0, max(self.dimensions)]
-        self.sample_domains = np.array([x, y, phi])
+        self.domains = np.array([x, y, phi])
         self.initSensor(sensor)
 
         self.a = tf.constant(a)
@@ -168,9 +171,9 @@ class PotentialFlowEnv:
             self.sensor = sensor
         # Write to tensor array
         samples_y = sampling.poisson_disc_sample(
-            self.sample_domains, min_distance, k)
+            self.domains, min_distance, k)
         samples_y[:, 2] = 2 * np.pi * \
-            samples_y[:, 2] / (self.sample_domains[2, 1])
+            samples_y[:, 2] / (self.domains[2, 1])
 
         samples_u = self.resample_sensor(samples_y, self.sensor, noise_stddev)
         return samples_u, samples_y
@@ -183,7 +186,7 @@ class PotentialFlowEnv:
         n_samples = int(sampling_freq * duration)
         step_distance = self.W.numpy() / sampling_freq
         samples_y = sampling.sample_path_2D(
-            self.sample_domains, step_distance, max_turn_angle=max_turn_angle,
+            self.domains, step_distance, max_turn_angle=max_turn_angle,
             circum_radius=circum_radius, inner_sampling_factor=inner_sampling_factor,
             n_samples=n_samples, mode=mode)
 
@@ -288,6 +291,78 @@ class PotentialFlowEnv:
 
         return samples_u, samples_y
 
+    def show_env(self):
+        plt.figure(figsize=(3.229, 2.2))
+        ax = plt.gca()
+
+        if self.domains is not None:
+            plt.hlines(self.domains[1, :], self.domains[0, 0],
+                       self.domains[0, 1], colors='grey', linestyles='--', zorder=-2)
+            plt.vlines(self.domains[0, :], self.domains[1, 0],
+                       self.domains[1, 1], colors='grey', linestyles='--', zorder=-2)
+
+        ax.spines['left'].set_position('center')
+        ax.spines['right'].set_color('none')
+        ax.spines.left.set_bounds((0, 0.54))
+
+        s_bar = self.sensor()
+        plt.scatter(s_bar, np.zeros((len(s_bar), )), s=16, zorder=-2)
+
+        p = (0.1, 0.25)
+        plt.scatter(*p, edgecolors='black')
+
+        s_x = s_bar[4]
+        s_y = 0
+
+        plt.arrow(*p, s_x-p[0], s_y-p[1], length_includes_head=True,
+                  head_width=0.015, head_length=0.03, fc='black', zorder=-1)
+        plt.arrow(*p, 0.1, 0.1, length_includes_head=True,
+                  head_width=0.015, head_length=0.03, fc='black', zorder=-1)
+
+        plt.vlines(p[0], 0, p[1], linestyles='dashed',
+                   colors='black', zorder=-1)
+        plt.hlines(p[1], 0, p[0] + 0.1, linestyles='dashed',
+                   colors='black', zorder=-1)
+
+        plt.xticks([-0.5, -0.2, 0., p[0], 0.2, 0.5],
+                   ['-500', '-200', '$O$', '$b$', '200', '500'])
+        plt.yticks([0.2, p[1], 0.4], ['200', '$d$', '400'])
+
+        arc = patches.Arc(p, 0.15, 0.15, 0, 0, 45)
+        ax.add_patch(arc)
+
+        angle = (np.math.atan2(p[1] - s_y, p[0] - s_x) + np.pi) * 180/np.pi
+        arc = patches.Arc(p, 0.1, 0.1, 0, angle, 45)
+        ax.add_patch(arc)
+
+        plt.annotate(r'$\mathbf{w}$', (0.11, 0.305))
+        plt.annotate(r'$\mathbf{r}$', (0.03, 0.13))
+        plt.annotate(r'$\varphi$', (0.18, 0.28))
+        plt.annotate(r'$\theta$', (0.14, 0.18))
+
+        # def mouse_move(event):
+        #     x, y = event.xdata, event.ydata
+        #     print(x, y)
+
+        # plt.connect('motion_notify_event', mouse_move)
+
+        plt.ylim(0, 0.6)
+        ax.set_aspect("equal")
+        ax.spines['top'].set_visible(False)
+
+        plt.annotate(text='', xy=(-0.48, self.domains[1, 0]), xytext=(-0.48,
+                     self.domains[1, 1]), arrowprops=dict(arrowstyle='<->'))
+        plt.annotate(text='', xy=(self.domains[0, 0], 0.545), xytext=(
+            self.domains[0, 1], 0.545), arrowprops=dict(arrowstyle='<->'))
+        plt.annotate('500 mm', (-0.46, 0.21), rotation=90)
+        plt.annotate('1000 mm', (-0.05, 0.565))
+
+        plt.xlabel(r'$x(\mathrm{mm}) \longrightarrow$')
+        plt.ylabel(r'$y(\mathrm{mm}) \longrightarrow$')
+
+        plt.tight_layout()
+        plt.show()
+
 
 def gather_p(x):
     return tf.gather(x, indices=[0, 1], axis=-1)
@@ -334,7 +409,7 @@ def binned_stat(pfenv: PotentialFlowEnv, pos, values, statistic="median", cell_s
     x = pos[:, 0]
     y = pos[:, 1]
 
-    dmn = pfenv.sample_domains
+    dmn = pfenv.domains
     dmn[1][0] = dmn[1][0] - cell_size/1.05
 
     def bin_domain(dmn, cell_size):
@@ -436,8 +511,6 @@ def plot_snr(pfenv: PotentialFlowEnv, sensor_i, y_bar, signal, noisy_signal):
 
 def main():
     tf.config.run_functions_eagerly(True)
-
-
 
     # print(ME_phi(tf.constant([0., 0., -2.2*np.pi]),
     #              tf.constant([0., 0., 2.2*np.pi])))

@@ -1,5 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
+from utils.mpl_import import plt
 from utils.arraylist import ArrayList
 from sklearn.metrics import pairwise_distances
 

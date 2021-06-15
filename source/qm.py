@@ -81,8 +81,8 @@ class QM:
         else:
             d = (anch_plus - anch_min) / 1.79
 
-        d_min = self.pfenv.sample_domains[1, 0]
-        d_max = self.pfenv.sample_domains[1, 1]
+        d_min = self.pfenv.domains[1, 0]
+        d_max = self.pfenv.domains[1, 1]
         if d > d_max:
             d = d_max
         elif d < d_min:
@@ -98,7 +98,7 @@ class QM:
         return y_bar
 
     def curve_fit_optimize(self, p0, u_bar, quad):
-        dmn = self.pfenv.sample_domains
+        dmn = self.pfenv.domains
         bounds = ([dmn[0, 0], dmn[1, 0], 0], [dmn[0, 1], dmn[1, 1], 2 * np.pi])
         scale = 1 / np.abs(quad).max()
         quad *= scale
