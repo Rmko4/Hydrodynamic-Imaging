@@ -8,6 +8,7 @@ import sampling
 import numpy as np
 from datetime import datetime
 import tensorflow as tf
+from utils.mpl_import import plt
 from tensorflow import keras
 from sklearn.utils import shuffle as sk_shuffle
 from sampling import print_sample_metrics
@@ -180,8 +181,8 @@ def main():
 
     sensors = SensorArray(N_SENSORS, (-0.4*D_sensors, 0.4*D_sensors))
     pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors, a_v, W_v)
+    # pfenv.show_env()
 
-    pfenv.show_env()
     # res = pfenv(tf.constant([[-0.3, 0.4, np.pi/4]]))
     # Change noise to 1.5e-5 and a_v W_v to 0.01
 

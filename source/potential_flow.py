@@ -180,7 +180,7 @@ class PotentialFlowEnv:
 
     def sample_path(self, sensor: SensorArray = None, noise_stddev=0,
                     sampling_freq=2048.0, inner_sampling_factor=10, duration=20.0,
-                    max_turn_angle=np.pi/128, circum_radius=None, mode="rotate"):
+                    max_turn_angle=np.pi/100, circum_radius=None, mode="rotate"):
         if sensor is not None:
             self.sensor = sensor
         n_samples = int(sampling_freq * duration)
@@ -215,7 +215,7 @@ class PotentialFlowEnv:
     def resample_points_to_path(self, samples_y, sensor: SensorArray = None,
                                 noise_stddev=0, sampling_freq=2048.0,
                                 inner_sampling_factor=10, n_fwd=4, n_bwd=15,
-                                max_turn_angle=np.pi/128):
+                                max_turn_angle=np.pi/100):
         if sensor is not None:
             self.sensor = sensor
         step_distance = self.W.numpy() / sampling_freq

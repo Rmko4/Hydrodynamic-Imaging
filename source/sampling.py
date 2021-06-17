@@ -109,7 +109,7 @@ def sample_path_on_pos(p_0, step_distance=.5,
         for j in reversed(range(0, n_bwd)):
             for _ in range(inner_sampling_factor):
                 x[2] = (x[2] + rng.uniform(-max_turn_angle,
-                                        max_turn_angle)) % (2*np.pi)
+                                           max_turn_angle)) % (2*np.pi)
                 x = forward(x, -step_distance)
             paths[i, j] = x
     return paths
@@ -244,13 +244,19 @@ def sample_path_2D(domains=np.array([[0., 1.0], [0., 1.0]]), step_distance=.05,
     return np.array(path)
 
 
-def plot(X, domains=None, title="Sampled data points", axis_unit="m"):
+def plot(X, domains=None, plot_f=None, marker_size=10):
+    plt_c = plt
+
+    if callable(plot_f):
+        plot_f(plt_c)
+
     if X.shape[1] == 2 or 3:
-        plt.scatter(X[:, 0], X[:, 1], s=2, c="black")
+        plt.scatter(X[:, 0], X[:, 1], s=marker_size,
+                    c="grey", edgecolors='black')
     if X.shape[1] == 3:
         u = np.cos(X[:, 2])
         v = np.sin(X[:, 2])
-        plt.quiver(X[:, 0], X[:, 1], u, v, color="grey")
+        plt.quiver(X[:, 0], X[:, 1], u, v, color="black", zorder=-1)
 
     if domains is not None:
         plt.hlines(domains[1, :], domains[0, 0],
@@ -261,10 +267,7 @@ def plot(X, domains=None, title="Sampled data points", axis_unit="m"):
     ax = plt.gca()
     ax.set_aspect("equal")
 
-    plt.xlabel("x({})".format(axis_unit))
-    plt.ylabel("y({})".format(axis_unit))
-    plt.title(title)
-
+    plt.tight_layout()
     plt.show()
 
 
