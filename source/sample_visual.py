@@ -70,9 +70,10 @@ def main():
     f_v = 45
     Amp_v = 2e-3
     W_v = 2 * np.pi * f_v * Amp_v # Speed for vibrating sphere
+    W_t = 0.5 # Speed for a translating sphere
 
     sensors = SensorArray(N_SENSORS, (-0.4*D_sensors, 0.4*D_sensors))
-    pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors, a_v, W_v)
+    pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors, a_v, W_t)
     pfenv.show_env()
 
     plot_toy_poisson(pfenv)

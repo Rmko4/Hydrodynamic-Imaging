@@ -25,7 +25,7 @@ def uniform_hyper_cube(domains):
     return rng.uniform(domains[:, 0], domains[:, 1])
 
 
-def poisson_disc_sample(domains=np.array([[0., 1.0], [0., 1.0]]), r=0.05, k=30):
+def poisson_disc_sample(domains=np.array([[0., 1.0], [0., 1.0]]), r=0.05, k=30, wrap_domains=[]):
     n = domains.shape[0]
     cell_size = r / np.sqrt(n)
     r_sq = r * r
@@ -51,10 +51,26 @@ def poisson_disc_sample(domains=np.array([[0., 1.0], [0., 1.0]]), r=0.05, k=30):
         grid_min = np.maximum(np.zeros(n), indices - cell_r).astype(int)
         grid_max = np.minimum(n_cells, indices + cell_r + 1).astype(int)
 
+        u_grid = grid
+
         iter = []
         for i in range(n):
-            iter.append(slice(grid_min[i], grid_max[i]))
-        sample_i = grid[tuple(iter)].flatten()
+            if i in wrap_domains:
+                left = indices[i] - int(cell_r)
+                right = indices[i] + int(cell_r) + 1
+                if left < 0:
+                    u_grid = np.roll(grid, -left, axis=i)
+                    right -= left
+                    left = 0
+                elif right > n_cells[i]:
+                    shift = n_cells[i]-right
+                    u_grid = np.roll(grid, shift, axis=i)
+                    left += shift
+                    right = n_cells[i]
+                iter.append(slice(left, right))
+            else:    
+                iter.append(slice(grid_min[i], grid_max[i]))
+        sample_i = u_grid[tuple(iter)].flatten()
         sample_i = sample_i[sample_i != -1]
 
         present_samples = samples.data.take(sample_i, axis=0)
@@ -90,7 +106,9 @@ def sample_path_on_pos(p_0, step_distance=.5,
         x = p[0] + distance * np.cos(p[2])
         y = p[1] + distance * np.sin(p[2])
         return np.array([x, y, p[2]])
-
+    
+    step_distance /= inner_sampling_factor
+    
     n_paths = np.shape(p_0)[0]
     path_len = n_fwd + n_bwd + 1
 
@@ -119,7 +137,7 @@ def sample_path_2D(domains=np.array([[0., 1.0], [0., 1.0]]), step_distance=.05,
                    max_turn_angle=np.pi/4, circum_radius=None, n_samples=100,
                    inner_sampling_factor=1, mode='rotate'):
 
-    step_distance /= inner_sampling_factor
+    
 
     if circum_radius is None:
         n_reg_poly = 2 * np.pi / max_turn_angle

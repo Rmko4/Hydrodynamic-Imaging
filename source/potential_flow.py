@@ -171,7 +171,7 @@ class PotentialFlowEnv:
             self.sensor = sensor
         # Write to tensor array
         samples_y = sampling.poisson_disc_sample(
-            self.domains, min_distance, k)
+            self.domains, min_distance, k, wrap_domains=[2])
         samples_y[:, 2] = 2 * np.pi * \
             samples_y[:, 2] / (self.domains[2, 1])
 
@@ -303,7 +303,7 @@ class PotentialFlowEnv:
 
         ax.spines['left'].set_position('center')
         ax.spines['right'].set_color('none')
-        ax.spines.left.set_bounds((0, 0.535))
+        ax.spines['left'].set_bounds((0, 0.535))
 
         s_bar = self.sensor()
         plt.scatter(s_bar, np.zeros((len(s_bar), )), s=16, zorder=-2)
@@ -351,7 +351,7 @@ class PotentialFlowEnv:
         ax.spines['top'].set_visible(False)
 
         plt.annotate(text='', xy=(-0.48, self.domains[1, 0]), xytext=(-0.48,
-                     self.domains[1, 1]), arrowprops=dict(arrowstyle='<->'))
+                                                                      self.domains[1, 1]), arrowprops=dict(arrowstyle='<->'))
         plt.annotate(text='', xy=(self.domains[0, 0], 0.545), xytext=(
             self.domains[0, 1], 0.545), arrowprops=dict(arrowstyle='<->'))
         plt.annotate('500 mm', (-0.46, 0.21), rotation=90)
