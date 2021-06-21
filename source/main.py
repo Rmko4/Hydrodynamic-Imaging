@@ -122,7 +122,7 @@ def run_QM(pfenv: PotentialFlowEnv, data):
     plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval)
 
 
-def run_MLP(pfenv: PotentialFlowEnv, sensors: SensorArray, data, window_size=1):
+def run_MLP(pfenv: PotentialFlowEnv, data, window_size=1):
     # 3, units=[512, 160, 32]
     mlp = MLP(pfenv, 5, units=[544, 1372, 1150, 2048, 1725], physics_informed_u=False,
               physics_informed_phi=False, phi_gradient=True, window_size=window_size,
@@ -175,7 +175,7 @@ def main():
     a_v = 10e-3
     f_v = 45
     Amp_v = 2e-3
-    W_v = 2 * np.pi * f_v * Amp_v
+    W_v = 2 * np.pi * f_v * Amp_v  # Speed use for the vibration.
     dur_v = 1
     f_s_v = 2048
 
@@ -187,8 +187,6 @@ def main():
     # Change noise to 1.5e-5 and a_v W_v to 0.01
 
     # gen_sinusoid_data_sets(pfenv, sensors, SAMPLE_DISTS[0], A=Amp_v, f=f_v, duration=dur_v, f_s=f_s_v, noise=1.5e-5)
-    # signal = init_data('sample_pair_sinusoid_0.4w_' +
-    #      str(SAMPLE_DISTS[0]) + '_0', pfenv, sensors, noise=0, shuffle=False)
 
     # noisy_signal = init_data('sample_pair_sinusoid_0.4w_' +
     #                          str(SAMPLE_DISTS[0]) + '_1.5e-05', pfenv, sensors, noise=0, shuffle=False)
@@ -198,7 +196,9 @@ def main():
     # samples_u = reduce_polyfit(path_u, -5)
     # data = (samples_u, samples_y)
 
-    # run_MLP(pfenv, sensors, noisy_signal)
+    data = init_data('sample_pair_sinusoid_0.4w_' +
+                     str(SAMPLE_DISTS[0]) + '_1.5e-05', pfenv, sensors, noise=0, shuffle=True)
+    run_MLP(pfenv, data)
 
     # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
     # pass
