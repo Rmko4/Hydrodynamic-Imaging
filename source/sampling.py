@@ -107,8 +107,6 @@ def sample_path_on_pos(p_0, step_distance=.5,
         y = p[1] + distance * np.sin(p[2])
         return np.array([x, y, p[2]])
     
-    step_distance /= inner_sampling_factor
-    
     n_paths = np.shape(p_0)[0]
     path_len = n_fwd + n_bwd + 1
 

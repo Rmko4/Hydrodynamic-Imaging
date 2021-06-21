@@ -184,7 +184,7 @@ class PotentialFlowEnv:
         if sensor is not None:
             self.sensor = sensor
         n_samples = int(sampling_freq * duration)
-        step_distance = self.W.numpy() / sampling_freq
+        step_distance = self.W.numpy() / (sampling_freq * inner_sampling_factor)
         samples_y = sampling.sample_path_2D(
             self.domains, step_distance, max_turn_angle=max_turn_angle,
             circum_radius=circum_radius, inner_sampling_factor=inner_sampling_factor,
@@ -218,7 +218,7 @@ class PotentialFlowEnv:
                                 max_turn_angle=np.pi/100):
         if sensor is not None:
             self.sensor = sensor
-        step_distance = self.W.numpy() / sampling_freq
+        step_distance = self.W.numpy() / (sampling_freq * inner_sampling_factor)
         samples_y = sampling.sample_path_on_pos(samples_y, step_distance=step_distance,
                                                 max_turn_angle=max_turn_angle,
                                                 n_fwd=n_fwd, n_bwd=n_bwd,
