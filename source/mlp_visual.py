@@ -1,89 +1,106 @@
-import sampling
 import numpy as np
-from potential_flow import PotentialFlowEnv, SensorArray
-from utils.mpl_import import plt
-
-D = .5
-Y_OFFSET = .025
-N_SENSORS = 8
+from utils.mpl_import import plt, patches
 
 
-def plot_f(plt):
-    plt.figure(figsize=(3.229, 2.0))
-    plt.xticks([-0.5, -0.2, 0., 0.2, 0.5],
-               ['-0.5', '-0.2', '0', '0.2', '0.5'])
-    plt.yticks([0., 0.2, 0.4], ['0', '0.2', '0.4'])
+def plot_mlp():
+    zeros = 4 * [0.]
+    ones = 4 * [1.]
+    one_halfs = 4 * [1.5]
+    twos = 3 * [2.]
+    threes = 4 * [3.]
+
+    y_0 = [-0.5, 0., 0.3, 0.6]
+    plt.scatter(zeros, y_0, s=500, c='white', edgecolors='black', zorder=1)
+    plt.scatter(ones, y_0, s=500, c='white', edgecolors='black', zorder=1)
+
+    y_1 = [-0.5, 0., 0.3, 0.6]
+
+    y_2 = [-0.65, -0.3, 0., 0.3]
+    plt.scatter(twos, y_2[1:], s=500, c='white',
+                edgecolors='black', zorder=1)
+
+    y_3 = [-0.5, -0.2, 0.3, 0.6]
+    plt.scatter(threes, y_3, s=500, c='white', edgecolors='black', zorder=1)
+
+    y_s = [-0.2, -0.25, -0.3]
+    plt.scatter(zeros[0:3], y_s, s=10, c='black', marker='.', zorder=1)
+    plt.scatter(ones[0:3], y_s, s=10, c='black', marker='.', zorder=1)
+    plt.scatter(threes[0:3], [0, 0.05, 0.1], s=10,
+                c='black', marker='.', zorder=1)
+
+    for i in y_0:
+        for j in y_0[0:3]:
+            plt.plot([0., 1.], [i, j], c='black', zorder=0)
+
+    for i in y_0:
+        for j in y_1[0:3]:
+            plt.plot([1., 1.5], [i, j], c='black', zorder=0)
+
+    for i in y_1:
+        for j in y_2[1:]:
+            plt.plot([1.5, 2.], [i, j], c='black', zorder=0)
+
+    for i in y_2[1:]:
+        plt.plot([2., 2.5], [i, 0.], c='black', zorder=0, ls='--')
+    for i in y_3:
+        plt.plot([2.5, 3.0], [0., i], c='black', zorder=0, ls='--')
+
+    y_bar_names = [r'$\hat{\mathbf{y}}$',
+                   r'$\hat{\varphi}$', r'$\hat{d}$', r'$\hat{b}$']
+
+    for i in range(len(y_2)):
+        plt.annotate(y_bar_names[i], (2., y_2[i]), ha='center', va='center')
+
+    plt.annotate(r'$\mathbf{u}$', (0., -0.65), ha='center', va='center')
+    plt.annotate(r'Hidden layer 1', (1., -0.65), ha='center', va='center')
+    plt.annotate(r'$\hat{\mathbf{u}}$', (3., -0.65), ha='center', va='center')
+
+    names_0 = [r'$\mu_{yP}$', r'$\mu_{y1}$', r'$\mu_{x1}$', r'$1.0$']
+    names_1 = [r'$x_{L^1}^1$', r'$x_{2}^1$', r'$x_{1}^1$', r'$1.0$']
+    names_2 = [r'$\mu_{yP}$', r'$\mu_{xP}$', r'$\mu_{y1}$', r'$\mu_{x1}$']
+    names_n = [names_0, names_1, names_2]
+
+    pos_x = [0., 1., 3.]
+    pos_y = [y_0, y_0, y_3]
+
+    for names, x, y in zip(names_n, pos_x, pos_y):
+        for j in range(len(y_0)):
+            plt.annotate(names[j], (x, y[j]), ha='center', va='center')
+
+    plt.annotate('Bias units', (0.5, 0.65), ha='center', va='center')
+
+    ellipse = patches.Ellipse(
+        (1.5, 0.), 0.3, 1.5, fc='white', ec=None, zorder=1)
+
+    r_h = 0.3
+    r_w = 0.4
+    rect = patches.Rectangle(
+        (2.5-r_w/2, 0.-r_h/2), r_w, r_h, fc='white', ec='black', zorder=1)
+
+    plt.annotate(r'$\tilde{v}_x, \tilde{v}_y$',
+                 (2.5, 0), ha='center', va='center')
 
     ax = plt.gca()
+    ax.add_patch(ellipse)
+    ax.add_patch(rect)
 
-    plt.xlabel(r'$x(\mathrm{m})$')
-    plt.ylabel(r'$y(\mathrm{m})$')
+    for i in y_0:
+        plt.scatter([1.45, 1.5, 1.55], 3 * [i], s=10,
+                    c='black', marker='.', zorder=2)
+    plt.scatter(one_halfs[0:3], y_s, s=10, c='black', marker='.', zorder=2)
 
-    ax.xaxis.set_label_coords(0.5, -.17)
-    ax.yaxis.set_label_coords(-.11, 0.55)
+    r_h = 1.40
+    r_w = 2.46
+    rect = patches.Rectangle(
+        (-.23, -.70), r_w, r_h, fc='none', ec='lightgrey', ls='--', zorder=1)
+    ax.add_patch(rect)
 
-
-def plot_toy_poisson(pfenv: PotentialFlowEnv):
-    _, samples_y = pfenv.sample_poisson(min_distance=0.15)
-
-    sampling.plot(samples_y, pfenv.domains, plot_f)
-
-
-def plot_toy_poisson_path(pfenv: PotentialFlowEnv):
-    y = np.array([[0.2, 0.1, 2.0], [0.199, 0.102, 3.5], [0.198, 0.099, 5.9]])
-    _, samples_y = pfenv.resample_points_to_path(y)
-
-    y = samples_y.reshape((-1, 3))
-
-    plt.figure(figsize=(3.229, 2.8))
-
-    if y.shape[1] == 2 or 3:
-        plt.scatter(y[:, 0], y[:, 1], s=8,
-                    c="lightgray", edgecolors='black')
-        plt.scatter(y[15::20, 0], y[15::20, 1], s=16,
-                    c="red", edgecolors='black')
-    if y.shape[1] == 3:
-        u = np.cos(y[:, 2])
-        v = np.sin(y[:, 2])
-        plt.quiver(y[:, 0], y[:, 1], u, v, color="black", zorder=-1)
-
-    ax = plt.gca()
-    ax.set_aspect("equal")
-
-    plt.xlabel(r'$x(\mathrm{m})$')
-    plt.ylabel(r'$y(\mathrm{m})$')
-
-    # ax.xaxis.set_label_coords(0.5, -.17)
-    # ax.yaxis.set_label_coords(-.11, 0.55)
-
+    plt.xlim(-.25, 3.25)
+    plt.ylim(-.75, 0.75)
+    plt.axis('off')
     plt.tight_layout()
     plt.show()
 
 
-def plot_toy_path(pfenv: PotentialFlowEnv, duration=10):
-    _, y = pfenv.sample_path(duration=duration)
-    sampling.plot(y, pfenv.domains, plot_f, marker_size=.1)
-
-
-def main():
-    D_sensors = D
-    dimensions = (2 * D, D)
-    y_offset_v = Y_OFFSET
-    a_v = 10e-3
-
-    f_v = 45
-    Amp_v = 2e-3
-    # W_v = 2 * np.pi * f_v * Amp_v # Speed for vibrating sphere
-    W_t = 0.5  # Speed for a translating sphere
-
-    sensors = SensorArray(N_SENSORS, (-0.4*D_sensors, 0.4*D_sensors))
-    pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors, a_v, W_t)
-    pfenv.show_env()
-
-    plot_toy_poisson(pfenv)
-    plot_toy_path(pfenv, 10)
-    plot_toy_poisson_path(pfenv)
-
-
 if __name__ == "__main__":
-    main()
+    plot_mlp()
