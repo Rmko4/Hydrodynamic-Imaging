@@ -47,6 +47,7 @@ class PotentialFlowEnv:
         self.W = tf.constant(W)
         self.C_dw = 0.5 * tf.pow(a, 3.)
         self.C_d = W * self.C_dw
+        self.C_d_np = self.C_d.numpy()
 
     def __call__(self, y: tf.Tensor):
         return tf.vectorized_map(self.v_tf, y)
@@ -128,7 +129,7 @@ class PotentialFlowEnv:
     def v_np(self, s, b, d, phi):
         rho = (s - b) / d
 
-        c = self.C_d.numpy() / d**3
+        c = self.C_d_np / d**3
 
         rho_sq = np.square(rho)
         denum = np.power(1 + rho_sq, 2.5)
@@ -432,7 +433,7 @@ def binned_stat(pfenv: PotentialFlowEnv, pos, values, statistic="median", cell_s
     return xv, yv, zv
 
 
-def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval,
+def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, save_path=None,
                              title=None):
     data = [p_eval, phi_eval/np.pi]
     # levels = [0., 0.01, 0.02, 0.03, 0.04, 0.06, 0.08, 0.1]
@@ -442,7 +443,7 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval,
     cell_size = 0.02
 
     plot_contours(pfenv, y_bar, data, cell_size, levels=levels,
-                  suptitle=suptitle, titles=titles)
+                  suptitle=suptitle, titles=titles, save_path=save_path)
 
 
 def plot_snr_contours(pfenv: PotentialFlowEnv, y_bar, x_snr, y_snr):
@@ -456,11 +457,10 @@ def plot_snr_contours(pfenv: PotentialFlowEnv, y_bar, x_snr, y_snr):
                   suptitle=suptitle, titles=titles)
 
 
-def plot_contours(pfenv: PotentialFlowEnv, y_bar, data, cell_size, levels, suptitle=None, titles=None):
+def plot_contours(pfenv: PotentialFlowEnv, y_bar, data, cell_size, levels, suptitle=None, titles=None, save_path=None):
     mesh_med = binned_stat(pfenv, y_bar, data, "median", cell_size=cell_size)
     fig, axes = plt.subplots(
         nrows=2, ncols=1, sharex=True, sharey=True, figsize=(C_WIDTH, 3.5))
-
 
     for i in range(2):
         cntr = axes[i].contour(mesh_med[0], mesh_med[1], mesh_med[2][i], linewidths=0.5,
@@ -484,6 +484,7 @@ def plot_contours(pfenv: PotentialFlowEnv, y_bar, data, cell_size, levels, supti
     plt.xticks([-0.5, -0.2, 0., 0.2, 0.5],
                ['-0.5', '-0.2', '0', '0.2', '0.5'])
     plt.yticks([0., 0.2, 0.4], ['0', '0.2', '0.4'])
+    axes[1].set_yticks([0.1, 0.3, 0.5], minor=True)
 
     axes[1].set_xlim((-.5, .5))
     axes[1].set_ylim(bottom=0.)
@@ -492,13 +493,15 @@ def plot_contours(pfenv: PotentialFlowEnv, y_bar, data, cell_size, levels, supti
 
     # fig.subplots_adjust(top=0.9)
     # cbar_ax = fig.add_axes([0.1, 0.9, 0.8, 0.05])
-    fig.colorbar(cntr2, ax=axes.ravel().tolist(), location='right', fraction=0.1, shrink=0.86)
+    fig.colorbar(cntr2, ax=axes.ravel().tolist(),
+                 location='right', fraction=0.1, shrink=0.86)
 
     fig.suptitle(suptitle)
 
-    plt.savefig('plots/cntr.pdf', bbox_inches='tight')
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight')
     # plt.tight_layout()
-    # plt.show()
+    plt.show()
 
 
 def plot_snr(pfenv: PotentialFlowEnv, sensor_i, y_bar, signal, noisy_signal):

@@ -15,14 +15,16 @@ from sampling import print_sample_metrics
 
 DATA_PATH = "sample_data/"
 RES_PATH = "results/"
+PLOT_PATH = 'plots/'
 FNAME_PREFIX = "sample_pair_"
 FNAME_POSTFIX = ".npz"
 FNAME_RES_POSTFIX = "_res.npz"
+FNAME_FIG_POSTFIX = '.pdf'
 
 D = .5
 Y_OFFSET = .025
 N_SENSORS = 8
-SAMPLE_DISTS = [0.015, 0.05]
+SAMPLE_DISTS = [0.015, 0.03]
 
 
 def gen_poisson_data_sets(pfenv: PotentialFlowEnv, sample_dist, noise=0):
@@ -112,18 +114,22 @@ def find_best_model(pfenv, data, max_trials=10, max_epochs=500, validation_split
     return model
 
 
-def run_QM(pfenv: PotentialFlowEnv, data):
+def run_QM(pfenv: PotentialFlowEnv, data, data_type='sinusoid'):
     samples_u, samples_y = data
     qm = QM(pfenv)
     # qm.search_best_model(samples_u, samples_y)
     p_eval, phi_eval = qm.evaluate(samples_u, samples_y)
-    plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval)
 
-    file_name = "QM_" + str(SAMPLE_DISTS[0]) + "_sinusoid" + FNAME_RES_POSTFIX
-    np.savez(RES_PATH + file_name, p_eval, phi_eval, samples_y)
+    file_name = "QM_" + str(SAMPLE_DISTS[1]) + "_" + data_type
+
+    plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval,
+                             save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
+
+    np.savez(RES_PATH + file_name + FNAME_RES_POSTFIX,
+             p_eval, phi_eval, samples_y)
 
 
-def run_MLP(pfenv: PotentialFlowEnv, data, window_size=1):
+def run_MLP(pfenv: PotentialFlowEnv, data, window_size=1, data_type='sinusoid'):
     mlp = MLP(pfenv, 3, units=[512, 160, 32], physics_informed_u=False,
               physics_informed_phi=False, phi_gradient=True, window_size=window_size,
               print_summary=True)
@@ -166,11 +172,13 @@ def run_MLP(pfenv: PotentialFlowEnv, data, window_size=1):
 
         p_eval, phi_eval = mlp.evaluate_full(samples_u, samples_y)
 
-    file_name = "MLP_" + "p_inf_" + str(SAMPLE_DISTS[0]) + "_sinusoid" + FNAME_RES_POSTFIX
-    np.savez(RES_PATH + file_name, p_eval, phi_eval, samples_y)
+    file_name = "MLP_" + "p_inf_" + str(SAMPLE_DISTS[0]) + "_" + data_type
 
-    plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval)
+    plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval,
+                             save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
 
+    np.savez(RES_PATH + file_name + FNAME_RES_POSTFIX,
+             p_eval, phi_eval, samples_y)
 
 
 def main():
@@ -188,12 +196,10 @@ def main():
     pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors, a_v, W_v)
     # pfenv.show_env()
 
-    # gen_sinusoid_data_sets(pfenv, sensors, SAMPLE_DISTS[0], A=Amp_v, f=f_v, duration=dur_v, f_s=f_s_v, noise=1.5e-5)
+    # gen_sinusoid_data_sets(pfenv, sensors, SAMPLE_DISTS[1], A=Amp_v, f=f_v, duration=dur_v, f_s=f_s_v, noise=1.5e-5)
 
     # res = pfenv(tf.constant([[-0.3, 0.4, np.pi/4]]))
     # Change noise to 1.5e-5 and a_v W_v to 0.01
-
-    
 
     # noisy_signal = init_data('sample_pair_sinusoid_0.4w_' +
     #                          str(SAMPLE_DISTS[0]) + '_1.5e-05', pfenv, sensors, noise=0, shuffle=False)
@@ -203,26 +209,28 @@ def main():
     # samples_u = reduce_polyfit(path_u, -5)
     # data = (samples_u, samples_y)
 
-    file_name = "MLP_" + "p_inf_" + str(SAMPLE_DISTS[0]) + "_sinusoid" + FNAME_RES_POSTFIX
+    file_name = "QM_" + "" + \
+        str(SAMPLE_DISTS[1]) + "_sinusoid" + FNAME_RES_POSTFIX
     data = np.load(RES_PATH + file_name)
     p_eval = data['arr_0']
     phi_eval = data['arr_1']
     samples_y = data['arr_2']
 
-    plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval)
+    file_name = "QM_" + "" + str(SAMPLE_DISTS[1]) + "_" + 'sinusoid'
 
+    plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval,
+                             save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
 
     # file_z = 'sample_pair_sinusoid_0.4w_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
     # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
 
-    # run_MLP(pfenv, data)
+    # run_MLP(pfenv, data, data_type='sinusoid')
 
-
-    # file_z = 'sample_pair_sinusoid_0.4w_' + '2_' + str(SAMPLE_DISTS[1]) + '_1.5e-05'
+    # file_z = 'sample_pair_sinusoid_0.4w_' + \
+    #     '2_' + str(SAMPLE_DISTS[1]) + '_1.5e-05'
     # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
 
-    # run_QM(pfenv, data)
-
+    # run_QM(pfenv, data, data_type='sinusoid')
 
     # file_z = 'sample_pair_' + str(SAMPLE_DISTS[0]) + '_0'
     # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
@@ -232,8 +240,7 @@ def main():
     # samples_u = reduce_polyfit(data[0], -5)
     # data = (samples_u, data[1])
 
-    # run_MLP(pfenv, data)
-
+    # run_MLP(pfenv, data, data_type='path')
 
     # file_z = 'sample_pair_' + '2_' + str(SAMPLE_DISTS[1]) + '_0'
     # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
@@ -243,14 +250,10 @@ def main():
     # samples_u = reduce_polyfit(data[0], -5)
     # data = (samples_u, data[1])
 
-    #run_QM(pfenv, data)
-
-
+    # run_QM(pfenv, data, data_type='path')
 
     # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
     # pass
-
-    
 
 
 if __name__ == "__main__":

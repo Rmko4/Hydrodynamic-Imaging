@@ -7,6 +7,7 @@ from scipy.stats import circmean
 from scipy.optimize import curve_fit
 import scipy.signal as signal
 import sampling
+from multiprocessing import Pool
 # from scipy.optimize._lsq.trf import trf_bounds
 # from scipy.optimize._numdiff import approx_derivative
 
@@ -127,10 +128,14 @@ class QM:
         return p_i
 
     def predict(self, samples_u, curve_fit=True):
-        samples_y = []
-        for u_bar in samples_u:
-            y_bar = self._step_predict(u_bar, curve_fit)
-            samples_y.append(y_bar)
+        iter_args = zip(samples_u, len(samples_u) * [curve_fit])
+        with Pool() as p:
+            samples_y = p.starmap(self._step_predict, iter_args)
+            
+        # samples_y = []
+        # for u_bar in samples_u:
+        #     y_bar = self._step_predict(u_bar, curve_fit)
+        #     samples_y.append(y_bar)
 
         return np.array(samples_y)
 
