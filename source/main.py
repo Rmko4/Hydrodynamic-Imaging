@@ -16,15 +16,13 @@ from sampling import print_sample_metrics
 DATA_PATH = "sample_data/"
 RES_PATH = "results/"
 FNAME_PREFIX = "sample_pair_"
-FNAME_PREFIX_SIN = "sample_pair_sinusoid_0.4w_"
 FNAME_POSTFIX = ".npz"
-FNAME_POSTFIX_SIN = ".npz"
 FNAME_RES_POSTFIX = "_res.npz"
 
 D = .5
 Y_OFFSET = .025
 N_SENSORS = 8
-SAMPLE_DISTS = [0.015, 0.015]
+SAMPLE_DISTS = [0.015, 0.05]
 
 
 def gen_poisson_data_sets(pfenv: PotentialFlowEnv, sample_dist, noise=0):
@@ -80,7 +78,7 @@ def load_data(file):
     return samples_u, samples_y
 
 
-def init_data(file_z, pfenv: PotentialFlowEnv, sensors: SensorArray, noise=1e-5, shuffle=False, plot=False):
+def init_data(file_z, pfenv: PotentialFlowEnv, sensors: SensorArray, noise=0, shuffle=False, plot=False):
     file_name = file_z + FNAME_POSTFIX
     samples_u, samples_y = load_data(DATA_PATH + file_name)
 
@@ -121,13 +119,18 @@ def run_QM(pfenv: PotentialFlowEnv, data):
     p_eval, phi_eval = qm.evaluate(samples_u, samples_y)
     plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval)
 
+    file_name = "QM_" + str(SAMPLE_DISTS[0]) + "_sinusoid" + FNAME_RES_POSTFIX
+    np.savez(RES_PATH + file_name, p_eval, phi_eval, samples_y)
+
 
 def run_MLP(pfenv: PotentialFlowEnv, data, window_size=1):
-    # 3, units=[512, 160, 32]
-    mlp = MLP(pfenv, 5, units=[544, 1372, 1150, 2048, 1725], physics_informed_u=False,
+    mlp = MLP(pfenv, 3, units=[512, 160, 32], physics_informed_u=False,
               physics_informed_phi=False, phi_gradient=True, window_size=window_size,
               print_summary=True)
-    mlp.compile()
+    # mlp = MLP(pfenv, 5, units=[544, 1372, 1150, 2048, 1725], physics_informed_u=False,
+    #           physics_informed_phi=False, phi_gradient=True, window_size=window_size,
+    #           print_summary=True)
+    mlp.compile(optimizer=keras.optimizers.Adam(learning_rate=5e-3))
     # logs = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
 
     # tboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logs,
@@ -150,8 +153,9 @@ def run_MLP(pfenv: PotentialFlowEnv, data, window_size=1):
         samples_u2, samples_y2 = load_data(DATA_PATH + file_name)
         p_eval, phi_eval = mlp.evaluate_full(samples_u2, samples_y2)
         plot_prediction_contours(pfenv, samples_y2, p_eval, phi_eval)
-        mlp.physics_informed_u = True
-        mlp.compile(optimizer=keras.optimizers.Adam(learning_rate=2e-5))
+
+        mlp.physics_informed_u = False
+        mlp.compile(optimizer=keras.optimizers.Adam(learning_rate=5e-3))
         mlp.fit(samples_u, samples_y, batch_size=2048, validation_split=0.2, epochs=200,
                 callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)])
         file_name = 'sample_pair_sinusoid_0.4w_' + '2_' + \
@@ -162,10 +166,11 @@ def run_MLP(pfenv: PotentialFlowEnv, data, window_size=1):
 
         p_eval, phi_eval = mlp.evaluate_full(samples_u, samples_y)
 
-    # file_name = FNAME_PREFIX + "2_" + str(SAMPLE_DISTS[1]) + FNAME_RES_POSTFIX
-    # np.savez(RES_PATH + file_name, p_eval, phi_eval, samples_y)
+    file_name = "MLP_" + "p_inf_" + str(SAMPLE_DISTS[0]) + "_sinusoid" + FNAME_RES_POSTFIX
+    np.savez(RES_PATH + file_name, p_eval, phi_eval, samples_y)
 
     plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval)
+
 
 
 def main():
@@ -183,10 +188,12 @@ def main():
     pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors, a_v, W_v)
     # pfenv.show_env()
 
+    # gen_sinusoid_data_sets(pfenv, sensors, SAMPLE_DISTS[0], A=Amp_v, f=f_v, duration=dur_v, f_s=f_s_v, noise=1.5e-5)
+
     # res = pfenv(tf.constant([[-0.3, 0.4, np.pi/4]]))
     # Change noise to 1.5e-5 and a_v W_v to 0.01
 
-    # gen_sinusoid_data_sets(pfenv, sensors, SAMPLE_DISTS[0], A=Amp_v, f=f_v, duration=dur_v, f_s=f_s_v, noise=1.5e-5)
+    
 
     # noisy_signal = init_data('sample_pair_sinusoid_0.4w_' +
     #                          str(SAMPLE_DISTS[0]) + '_1.5e-05', pfenv, sensors, noise=0, shuffle=False)
@@ -196,14 +203,54 @@ def main():
     # samples_u = reduce_polyfit(path_u, -5)
     # data = (samples_u, samples_y)
 
-    data = init_data('sample_pair_sinusoid_0.4w_' +
-                     str(SAMPLE_DISTS[0]) + '_1.5e-05', pfenv, sensors, noise=0, shuffle=True)
-    run_MLP(pfenv, data)
+    file_name = "MLP_" + "p_inf_" + str(SAMPLE_DISTS[0]) + "_sinusoid" + FNAME_RES_POSTFIX
+    data = np.load(RES_PATH + file_name)
+    p_eval = data['arr_0']
+    phi_eval = data['arr_1']
+    samples_y = data['arr_2']
+
+    plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval)
+
+
+    # file_z = 'sample_pair_sinusoid_0.4w_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
+    # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
+
+    # run_MLP(pfenv, data)
+
+
+    # file_z = 'sample_pair_sinusoid_0.4w_' + '2_' + str(SAMPLE_DISTS[1]) + '_1.5e-05'
+    # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
+
+    # run_QM(pfenv, data)
+
+
+    # file_z = 'sample_pair_' + str(SAMPLE_DISTS[0]) + '_0'
+    # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
+
+    # pfenv.W = tf.constant(0.5)
+    # data = pfenv.resample_points_to_path(data[1], sensors, sampling_freq=f_s_v, noise_stddev=1e-5, n_fwd=4, n_bwd=20)
+    # samples_u = reduce_polyfit(data[0], -5)
+    # data = (samples_u, data[1])
+
+    # run_MLP(pfenv, data)
+
+
+    # file_z = 'sample_pair_' + '2_' + str(SAMPLE_DISTS[1]) + '_0'
+    # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
+
+    # pfenv.W = tf.constant(0.5)
+    # data = pfenv.resample_points_to_path(data[1], sensors, sampling_freq=f_s_v, noise_stddev=1e-5, n_fwd=4, n_bwd=20)
+    # samples_u = reduce_polyfit(data[0], -5)
+    # data = (samples_u, data[1])
+
+    #run_QM(pfenv, data)
+
+
 
     # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
     # pass
 
-    # run_QM(pfenv, noisy_signal)
+    
 
 
 if __name__ == "__main__":

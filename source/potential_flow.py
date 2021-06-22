@@ -5,7 +5,7 @@ import tensorflow as tf
 import numpy as np
 import sampling
 
-from utils.mpl_import import plt
+from utils.mpl_import import plt, C_WIDTH
 
 from scipy.stats import binned_statistic_2d
 
@@ -433,7 +433,7 @@ def binned_stat(pfenv: PotentialFlowEnv, pos, values, statistic="median", cell_s
 
 
 def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval,
-                             title="Quadrature Method - Windowed Path - Noise 1.5e-5"):
+                             title=None):
     data = [p_eval, phi_eval/np.pi]
     # levels = [0., 0.01, 0.02, 0.03, 0.04, 0.06, 0.08, 0.1]
     levels = [0., 0.01, 0.03, 0.05, 0.09]
@@ -459,9 +459,8 @@ def plot_snr_contours(pfenv: PotentialFlowEnv, y_bar, x_snr, y_snr):
 def plot_contours(pfenv: PotentialFlowEnv, y_bar, data, cell_size, levels, suptitle=None, titles=None):
     mesh_med = binned_stat(pfenv, y_bar, data, "median", cell_size=cell_size)
     fig, axes = plt.subplots(
-        nrows=2, ncols=1, sharex=True, sharey=True, figsize=(9, 9))
+        nrows=2, ncols=1, sharex=True, sharey=True, figsize=(C_WIDTH, 3.5))
 
-    axes[1].set_xlabel("x(m)")
 
     for i in range(2):
         cntr = axes[i].contour(mesh_med[0], mesh_med[1], mesh_med[2][i], linewidths=0.5,
@@ -473,20 +472,33 @@ def plot_contours(pfenv: PotentialFlowEnv, y_bar, data, cell_size, levels, supti
         #                    colors='k', levels=[0.0, 0.01, 0.03, 0.05, 0.1])
         # cntr = axes[i].tricontourf(y_bar[:, 0], y_bar[:, 1], data[i], levels=[
         #     0.0, 0.01, 0.03, 0.05, 0.1])
+
         axes[i].set_title(titles[i])
-        axes[i].set_ylabel("y(m)")
-        axes[i].clabel(cntr, inline=True, manual=True, colors='black')
+        axes[i].set_ylabel(r"$y(\mathrm{m})$")
+        # axes[i].clabel(cntr, inline=True, manual=True, colors='black')
         axes[i].set_aspect("equal")
         # SET equal aspect
         s_bar = pfenv.sensor()
-        axes[i].scatter(s_bar, np.zeros((len(s_bar), )))
+        axes[i].scatter(s_bar, np.zeros((len(s_bar), )), s=16)
 
-    fig.subplots_adjust(right=0.8)
-    cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-    fig.colorbar(cntr2, cax=cbar_ax)
+    plt.xticks([-0.5, -0.2, 0., 0.2, 0.5],
+               ['-0.5', '-0.2', '0', '0.2', '0.5'])
+    plt.yticks([0., 0.2, 0.4], ['0', '0.2', '0.4'])
+
+    axes[1].set_xlim((-.5, .5))
+    axes[1].set_ylim(bottom=0.)
+
+    axes[1].set_xlabel(r"$x(\mathrm{m})$")
+
+    # fig.subplots_adjust(top=0.9)
+    # cbar_ax = fig.add_axes([0.1, 0.9, 0.8, 0.05])
+    fig.colorbar(cntr2, ax=axes.ravel().tolist(), location='right', fraction=0.1, shrink=0.86)
 
     fig.suptitle(suptitle)
-    plt.show()
+
+    plt.savefig('plots/cntr.pdf', bbox_inches='tight')
+    # plt.tight_layout()
+    # plt.show()
 
 
 def plot_snr(pfenv: PotentialFlowEnv, sensor_i, y_bar, signal, noisy_signal):
