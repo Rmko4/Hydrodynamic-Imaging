@@ -114,13 +114,13 @@ def find_best_model(pfenv, data, max_trials=10, max_epochs=500, validation_split
     return model
 
 
-def run_QM(pfenv: PotentialFlowEnv, data, data_type='sinusoid'):
+def run_QM(pfenv: PotentialFlowEnv, data, data_type='sinusoid', multi_process=True):
     samples_u, samples_y = data
     qm = QM(pfenv)
     # qm.search_best_model(samples_u, samples_y)
-    p_eval, phi_eval = qm.evaluate(samples_u, samples_y)
+    p_eval, phi_eval = qm.evaluate(samples_u, samples_y, multi_process=multi_process)
 
-    file_name = "QM_" + str(SAMPLE_DISTS[1]) + "_" + data_type
+    file_name = "QM_" + str(SAMPLE_DISTS[0]) + "_" + data_type
 
     plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval,
                              save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
@@ -227,10 +227,10 @@ def main():
     # run_MLP(pfenv, data, data_type='sinusoid')
 
     # file_z = 'sample_pair_sinusoid_0.4w_' + \
-    #     '2_' + str(SAMPLE_DISTS[1]) + '_1.5e-05'
+    #     '2_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
     # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
 
-    # run_QM(pfenv, data, data_type='sinusoid')
+    # run_QM(pfenv, data, data_type='sinusoid', multi_process=True)
 
     # file_z = 'sample_pair_' + str(SAMPLE_DISTS[0]) + '_0'
     # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)

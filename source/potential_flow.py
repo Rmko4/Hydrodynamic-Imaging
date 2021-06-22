@@ -460,7 +460,7 @@ def plot_snr_contours(pfenv: PotentialFlowEnv, y_bar, x_snr, y_snr):
 def plot_contours(pfenv: PotentialFlowEnv, y_bar, data, cell_size, levels, suptitle=None, titles=None, save_path=None):
     mesh_med = binned_stat(pfenv, y_bar, data, "median", cell_size=cell_size)
     fig, axes = plt.subplots(
-        nrows=2, ncols=1, sharex=True, sharey=True, figsize=(C_WIDTH, 3.5))
+        nrows=2, ncols=1, sharex=True, sharey=True, figsize=(3.0, 3.5))
 
     for i in range(2):
         cntr = axes[i].contour(mesh_med[0], mesh_med[1], mesh_med[2][i], linewidths=0.5,

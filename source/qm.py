@@ -32,6 +32,21 @@ class QM:
             return scale * self.psi_quad(u_bar)
         return f
 
+    def psi_quad_scaled_phi_f(self, scale, phi):
+        def f(s, b, d):
+            u_bar = self.pfenv.v_np(s, b, d, phi)
+            return scale * self.psi_quad(u_bar)
+        return f
+
+    def psi_quad_phi_f(self, phi):
+        def f(s, b, d):
+            u_bar = self.pfenv.v_np(s, b, d, phi)
+            quad = self.psi_quad(u_bar)
+            scale = 1 / np.abs(quad).max()
+            quad *= scale
+            return quad
+        return f
+
     def anch(self, quad, s_bar, b_i, anch_height):
         i = b_i
         sensor_len = s_bar.size
@@ -100,10 +115,11 @@ class QM:
 
     def curve_fit_optimize(self, p0, u_bar, quad):
         dmn = self.pfenv.domains
-        bounds = ([dmn[0, 0], dmn[1, 0], 0], [dmn[0, 1], dmn[1, 1], 2 * np.pi])
+        bounds = ([dmn[0, 0], dmn[1, 0]], [dmn[0, 1], dmn[1, 1]])
+        # bounds = ([dmn[0, 0], dmn[1, 0], 0], [dmn[0, 1], dmn[1, 1], 2 * np.pi])
         scale = 1 / np.abs(quad).max()
         quad *= scale
-        p_i = p0
+        p_i = p0[0:2]
 
         # def func_wrapped(params):
         #     return self.psi_quad_scaled_f(scale)(self.s_bar, *params) - quad
@@ -122,25 +138,26 @@ class QM:
         #        np.array([1., 1., 1.]), None, 'exact', {}, 0)
         for _ in range(self.optimization_iter):
             # curve_fit uses version that does not raise error upon reaching iter beyond max_nfev
-            p_i, _ = curve_fit(self.psi_quad_scaled_f(scale), self.s_bar, quad, p0=p_i,
+            p_i, _ = curve_fit(self.psi_quad_scaled_phi_f(scale, p0[2]), self.s_bar, quad, p0=p_i,
                                method='trf', bounds=bounds, xtol=1e-3, diff_step=1e-3, max_nfev=10)
-            p_i[2] = self.phi_calc(u_bar, p_i[0], p_i[1])
-        return p_i
+            p0[2] = self.phi_calc(u_bar, p_i[0], p_i[1])
+        return np.concatenate((p_i, p0[2]), axis=None)
 
-    def predict(self, samples_u, curve_fit=True):
-        iter_args = zip(samples_u, len(samples_u) * [curve_fit])
-        with Pool() as p:
-            samples_y = p.starmap(self._step_predict, iter_args)
-            
-        # samples_y = []
-        # for u_bar in samples_u:
-        #     y_bar = self._step_predict(u_bar, curve_fit)
-        #     samples_y.append(y_bar)
+    def predict(self, samples_u, curve_fit=True, multi_process=True):
+        if multi_process:
+            iter_args = zip(samples_u, len(samples_u) * [curve_fit])
+            with Pool() as p:
+                samples_y = p.starmap(self._step_predict, iter_args)
+        else:
+            samples_y = []
+            for u_bar in samples_u:
+                y_bar = self._step_predict(u_bar, curve_fit)
+                samples_y.append(y_bar)
 
         return np.array(samples_y)
 
-    def evaluate(self, samples_u, samples_y, curve_fit=True):
-        pred_y = self.predict(samples_u, curve_fit)
+    def evaluate(self, samples_u, samples_y, curve_fit=True, multi_process=True):
+        pred_y = self.predict(samples_u, curve_fit, multi_process)
         pred_y = tf.convert_to_tensor(pred_y, dtype=tf.float32)
         # Select correct pred_y out of complete signal
         p_eval = E_p(samples_y, pred_y)
@@ -165,8 +182,6 @@ class QM:
             samples_u = reduce_polyfit(path_u, true_idx)
             self.evaluate(samples_u, samples_y, true_idx)
             print()
-
-
 
 
 def main():
