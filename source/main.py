@@ -24,7 +24,7 @@ FNAME_FIG_POSTFIX = '.pdf'
 D = .5
 Y_OFFSET = .025
 N_SENSORS = 8
-SAMPLE_DISTS = [0.015, 0.03]
+SAMPLE_DISTS = [0.015, 0.03, 0.05]
 
 
 def gen_poisson_data_sets(pfenv: PotentialFlowEnv, sample_dist, noise=0):
@@ -209,22 +209,22 @@ def main():
     # samples_u = reduce_polyfit(path_u, -5)
     # data = (samples_u, samples_y)
 
-    file_name = "QM_" + "" + \
-        str(SAMPLE_DISTS[1]) + "_sinusoid" + FNAME_RES_POSTFIX
-    data = np.load(RES_PATH + file_name)
-    p_eval = data['arr_0']
-    phi_eval = data['arr_1']
-    samples_y = data['arr_2']
+    # file_name = "QM_" + "" + \
+    #     str(SAMPLE_DISTS[1]) + "_sinusoid" + FNAME_RES_POSTFIX
+    # data = np.load(RES_PATH + file_name)
+    # p_eval = data['arr_0']
+    # phi_eval = data['arr_1']
+    # samples_y = data['arr_2']
 
-    file_name = "QM_" + "" + str(SAMPLE_DISTS[1]) + "_" + 'sinusoid'
+    # file_name = "QM_" + "" + str(SAMPLE_DISTS[1]) + "_" + 'sinusoid'
 
-    plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval,
-                             save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
+    # plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval,
+    #                          save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
 
-    # file_z = 'sample_pair_sinusoid_0.4w_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
-    # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
+    file_z = 'sample_pair_sinusoid_0.4w_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
+    data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
 
-    # run_MLP(pfenv, data, data_type='sinusoid')
+    run_MLP(pfenv, data, data_type='sinusoid')
 
     # file_z = 'sample_pair_sinusoid_0.4w_' + \
     #     '2_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
@@ -232,11 +232,12 @@ def main():
 
     # run_QM(pfenv, data, data_type='sinusoid', multi_process=True)
 
+
     # file_z = 'sample_pair_' + str(SAMPLE_DISTS[0]) + '_0'
     # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
 
     # pfenv.W = tf.constant(0.5)
-    # data = pfenv.resample_points_to_path(data[1], sensors, sampling_freq=f_s_v, noise_stddev=1e-5, n_fwd=4, n_bwd=20)
+    # data = pfenv.resample_points_to_path(data[1], sensors, sampling_freq=f_s_v, noise_stddev=1.5e-5, n_fwd=4, n_bwd=20)
     # samples_u = reduce_polyfit(data[0], -5)
     # data = (samples_u, data[1])
 
@@ -246,14 +247,24 @@ def main():
     # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
 
     # pfenv.W = tf.constant(0.5)
-    # data = pfenv.resample_points_to_path(data[1], sensors, sampling_freq=f_s_v, noise_stddev=1e-5, n_fwd=4, n_bwd=20)
+    # data = pfenv.resample_points_to_path(data[1], sensors, sampling_freq=f_s_v, noise_stddev=1.5e-5, n_fwd=4, n_bwd=20)
     # samples_u = reduce_polyfit(data[0], -5)
     # data = (samples_u, data[1])
 
     # run_QM(pfenv, data, data_type='path')
 
+    # file_z = 'sample_pair_' + str(SAMPLE_DISTS[2]) + '_0' # ADD BACK _2
+    # u, y = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
+
+    # pfenv.W = tf.constant(0.5)
+    # data = pfenv.resample_points_to_path(y, sensors, sampling_freq=f_s_v, noise_stddev=1.5e-5, n_fwd=4, n_bwd=20)
+    
+    # qm = QM(pfenv)
+    # qm.search_best_model(data[0], y)
+
     # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
     # pass
+
 
 
 if __name__ == "__main__":

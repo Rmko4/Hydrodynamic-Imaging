@@ -13,7 +13,7 @@ from multiprocessing import Pool
 
 
 class QM:
-    def __init__(self, pfenv: PotentialFlowEnv, optimization_iter=5):
+    def __init__(self, pfenv: PotentialFlowEnv, optimization_iter=4):
         self.pfenv = pfenv
         self.s_bar = pfenv.sensor().numpy()
         self.optimization_iter = optimization_iter
@@ -159,6 +159,7 @@ class QM:
     def evaluate(self, samples_u, samples_y, curve_fit=True, multi_process=True):
         pred_y = self.predict(samples_u, curve_fit, multi_process)
         pred_y = tf.convert_to_tensor(pred_y, dtype=tf.float32)
+        samples_y = tf.convert_to_tensor(samples_y, dtype=tf.float32)
         # Select correct pred_y out of complete signal
         p_eval = E_p(samples_y, pred_y)
         phi_eval = E_phi(samples_y, pred_y)
