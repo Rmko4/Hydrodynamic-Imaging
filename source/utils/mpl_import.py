@@ -4,7 +4,7 @@ import matplotlib.patches as patches
 C_WIDTH = 3.229
 
 params = {
-    "text.usetex": False,
+    "text.usetex": True,
     "font.family": 'serif',
     'font.size': 10,
     "font.serif": ['Times'],

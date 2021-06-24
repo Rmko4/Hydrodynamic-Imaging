@@ -120,7 +120,7 @@ def run_QM(pfenv: PotentialFlowEnv, data, data_type='sinusoid', multi_process=Tr
     # qm.search_best_model(samples_u, samples_y)
     p_eval, phi_eval = qm.evaluate(samples_u, samples_y, multi_process=multi_process)
 
-    file_name = "QM_" + str(SAMPLE_DISTS[2]) + "_" + data_type
+    file_name = "QM_" + str(SAMPLE_DISTS[0]) + "_" + data_type
 
     plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval,
                              save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
@@ -223,9 +223,10 @@ def main():
     #                          save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
 
     # file_z = 'sample_pair_sinusoid_0.4w_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
-    # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
+    file_z = 'path_' + str(SAMPLE_DISTS[0]) + '_1e-05'
+    data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
 
-    # run_MLP(pfenv, data, data_type='sinusoid')
+    run_MLP(pfenv, data, data_type='sinusoid')
 
     # file_z = 'sample_pair_sinusoid_0.4w_' + \
     #     '2_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
@@ -244,15 +245,17 @@ def main():
 
     # run_MLP(pfenv, data, data_type='path')
 
-    file_z = 'sample_pair_' + str(SAMPLE_DISTS[2]) + '_0'
-    data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
+    # file_z = 'sample_pair_' + '2_' + str(SAMPLE_DISTS[0]) + '_0'
+    # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
 
-    pfenv.W = tf.constant(0.5)
-    data_path = pfenv.resample_points_to_path(data[1], sensors, sampling_freq=f_s_v, noise_stddev=1.5e-5, n_fwd=4, n_bwd=20)
-    samples_u = reduce_polyfit(data_path[0], -5)
-    data = (samples_u, data[1])
+    # pfenv.W = tf.constant(0.5)
+    # data_path = pfenv.resample_points_to_path(data[1], sensors, sampling_freq=f_s_v, noise_stddev=1.0e-5, n_fwd=4, n_bwd=20)
+    # samples_u = reduce_polyfit(data_path[0], -5)
+    # data = (samples_u, data[1])
+    # file_name = "path" + "_2_" + str(SAMPLE_DISTS[0]) + "_" + str(1.0e-5)
+    # np.savez(DATA_PATH + file_name, data[0], data[1])
 
-    run_QM(pfenv, data, data_type='path')
+    # run_QM(pfenv, data, data_type='path')
 
     # file_z = 'sample_pair_' + str(SAMPLE_DISTS[2]) + '_0' # ADD BACK _2
     # u, y = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
