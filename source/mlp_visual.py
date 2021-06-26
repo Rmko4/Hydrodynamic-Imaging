@@ -95,6 +95,12 @@ def plot_mlp():
         (-.23, -.70), r_w, r_h, fc='none', ec='lightgrey', ls='--', zorder=1)
     ax.add_patch(rect)
 
+    r_h = 1.46
+    r_w = 1.46
+    rect = patches.Rectangle(
+        (1.77, -.73), r_w, r_h, fc='none', ec='darkgrey', ls='--', zorder=1)
+    ax.add_patch(rect)
+
     plt.xlim(-.25, 3.25)
     plt.ylim(-.75, 0.75)
     plt.axis('off')

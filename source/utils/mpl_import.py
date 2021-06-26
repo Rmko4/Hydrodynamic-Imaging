@@ -9,6 +9,6 @@ params = {
     'font.size': 10,
     "font.serif": ['Times'],
     'figure.figsize': (C_WIDTH, C_WIDTH),
-    'figure.dpi': 200
+    'figure.dpi': 400
 }
 plt.rcParams.update(params)

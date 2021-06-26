@@ -71,8 +71,8 @@ def main():
     y_offset_v = Y_OFFSET
     a_v = 10e-3
 
-    f_v = 45
-    Amp_v = 2e-3
+    # f_v = 45
+    # Amp_v = 2e-3
     # W_v = 2 * np.pi * f_v * Amp_v # Speed for vibrating sphere
     W_t = 0.5  # Speed for a translating sphere
 
