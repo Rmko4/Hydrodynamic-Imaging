@@ -209,7 +209,8 @@ class PotentialFlowEnv:
 
     def apply_gauss_noise(self, samples_u, noise_stddev=1.5e-5):
         if noise_stddev != 0:
-            gaus_noise = sampling.rng.normal(0, noise_stddev, samples_u.shape)
+            gaus_noise = sampling.rng.normal(
+                0, noise_stddev, samples_u.shape).astype(np.float32)
             return samples_u + gaus_noise
         return samples_u
 
@@ -450,11 +451,9 @@ def plot_snr_contours(pfenv: PotentialFlowEnv, y_bar, x_snr, y_snr):
     data = [x_snr, y_snr]
     levels = [0, 10, 30, 50, 70, 90]
     titles = [r"$v_x(\mathrm{dB})$", r"$v_y(\mathrm{dB})$"]
-    suptitle = "Signal to noise ratio (SNR)"
     cell_size = 0.02
 
-    plot_contours(pfenv, y_bar, data, cell_size, levels=levels,
-                  suptitle=suptitle, titles=titles)
+    plot_contours(pfenv, y_bar, data, cell_size, levels=levels, titles=titles)
 
 
 def plot_contours(pfenv: PotentialFlowEnv, y_bar, data, cell_size, levels, suptitle=None, titles=None, save_path=None):
@@ -493,8 +492,8 @@ def plot_contours(pfenv: PotentialFlowEnv, y_bar, data, cell_size, levels, supti
 
     # fig.subplots_adjust(top=0.9)
     # cbar_ax = fig.add_axes([0.1, 0.9, 0.8, 0.05])
-    fig.colorbar(cntr2, ax=axes.ravel().tolist(),
-                 location='right', fraction=0.1, shrink=0.86)
+    fig.colorbar(cntr2, ax=axes.ravel().tolist(), location='right',
+                 spacing='proportional', fraction=0.1, shrink=0.86)
 
     fig.suptitle(suptitle)
 

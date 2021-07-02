@@ -206,33 +206,45 @@ def main():
     # res = pfenv(tf.constant([[-0.3, 0.4, np.pi/4]]))
     # Change noise to 1.5e-5 and a_v W_v to 0.01
 
-    # noisy_signal = init_data('sample_pair_sinusoid_0.4w_' +
-    #                          str(SAMPLE_DISTS[0]) + '_1.5e-05', pfenv, sensors, noise=0, shuffle=False)
+    signal = init_data('sample_pair_sinusoid_0.4w_' +
+                             str(SAMPLE_DISTS[0]) + '_0', pfenv, sensors, noise=0, shuffle=False)
+    noisy_signal = init_data('sample_pair_sinusoid_0.4w_' +
+                             str(SAMPLE_DISTS[0]) + '_1.5e-05', pfenv, sensors, noise=0, shuffle=False)
 
-    # pf.plot_snr(pfenv, 4, signal[1], signal[0], noisy_signal[0])
+    pf.plot_snr(pfenv, 4, signal[1], signal[0], noisy_signal[0])
+
     # path_u, path_y = pfenv.resample_points_to_path(samples_y, sensors, noise_stddev=1e-5, n_fwd=4, n_bwd=20)
     # samples_u = reduce_polyfit(path_u, -5)
     # data = (samples_u, samples_y)
 
+
+    # file_z = 'sample_pair_sinusoid_0.4w_' + \
+    #     str(SAMPLE_DISTS[0]) + '_0'
+    # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=False)
+    # file_z = 'sample_pair_sinusoid_0.4w_' + \
+    #     str(SAMPLE_DISTS[0]) + '_1.5e-05'
+    # data2 = init_data(file_z, pfenv, sensors, noise=1.5e-5, shuffle=False)
+    # pass
+
     # file_name = "QM_" + "" + \
-    #     str(SAMPLE_DISTS[1]) + "_sinusoid" + FNAME_RES_POSTFIX
+    #     str(SAMPLE_DISTS[0]) + "_sinusoid" + FNAME_RES_POSTFIX
     # data = np.load(RES_PATH + file_name)
     # p_eval = data['arr_0']
     # phi_eval = data['arr_1']
     # samples_y = data['arr_2']
 
-    # file_name = "QM_" + "" + str(SAMPLE_DISTS[1]) + "_" + 'sinusoid'
+    # file_name = "QM_" + "" + str(SAMPLE_DISTS[0]) + "_" + 'sinusoid'
 
     # plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval,
     #                          save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
 
     # file_z = 'sample_pair_sinusoid_0.4w_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
     # data_type = 'sinusoid'
-    file_z = 'path_' + str(SAMPLE_DISTS[0]) + '_1e-05'
-    data_type = 'path'
-    data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
+    # file_z = 'path_' + str(SAMPLE_DISTS[0]) + '_1e-05'
+    # data_type = 'path'
+    # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
 
-    run_MLP(pfenv, data, data_type=data_type)
+    # run_MLP(pfenv, data, data_type=data_type)
 
     # file_z = 'sample_pair_sinusoid_0.4w_' + \
     #     '2_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
