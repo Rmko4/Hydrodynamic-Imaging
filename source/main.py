@@ -210,8 +210,8 @@ def main():
                              str(SAMPLE_DISTS[0]) + '_0', pfenv, sensors, noise=0, shuffle=False)
     noisy_signal = init_data('sample_pair_sinusoid_0.4w_' +
                              str(SAMPLE_DISTS[0]) + '_1.5e-05', pfenv, sensors, noise=0, shuffle=False)
-
-    pf.plot_snr(pfenv, 4, signal[1], signal[0], noisy_signal[0])
+    file_name = 'sinusoid_0.4w_' + str(SAMPLE_DISTS[0]) + '_snr'
+    pf.plot_snr(pfenv, 4, signal[1], signal[0], noisy_signal[0], save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
 
     # path_u, path_y = pfenv.resample_points_to_path(samples_y, sensors, noise_stddev=1e-5, n_fwd=4, n_bwd=20)
     # samples_u = reduce_polyfit(path_u, -5)

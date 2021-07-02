@@ -447,13 +447,14 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, s
                   suptitle=suptitle, titles=titles, save_path=save_path)
 
 
-def plot_snr_contours(pfenv: PotentialFlowEnv, y_bar, x_snr, y_snr):
+def plot_snr_contours(pfenv: PotentialFlowEnv, y_bar, x_snr, y_snr, save_path=None):
     data = [x_snr, y_snr]
     levels = [0, 10, 30, 50, 70, 90]
     titles = [r"$v_x(\mathrm{dB})$", r"$v_y(\mathrm{dB})$"]
     cell_size = 0.02
 
-    plot_contours(pfenv, y_bar, data, cell_size, levels=levels, titles=titles)
+    plot_contours(pfenv, y_bar, data, cell_size, levels=levels,
+                  titles=titles, save_path=save_path)
 
 
 def plot_contours(pfenv: PotentialFlowEnv, y_bar, data, cell_size, levels, suptitle=None, titles=None, save_path=None):
@@ -503,7 +504,7 @@ def plot_contours(pfenv: PotentialFlowEnv, y_bar, data, cell_size, levels, supti
     plt.show()
 
 
-def plot_snr(pfenv: PotentialFlowEnv, sensor_i, y_bar, signal, noisy_signal):
+def plot_snr(pfenv: PotentialFlowEnv, sensor_i, y_bar, signal, noisy_signal, save_path=None):
     n_sensors = len(pfenv.sensor())
     sensor_i_2 = n_sensors + sensor_i
 
@@ -520,7 +521,7 @@ def plot_snr(pfenv: PotentialFlowEnv, sensor_i, y_bar, signal, noisy_signal):
     x_snr = snr(signal, noisy_signal, sensor_i)
     y_snr = snr(signal, noisy_signal, sensor_i_2)
 
-    plot_snr_contours(pfenv, y_bar, x_snr, y_snr)
+    plot_snr_contours(pfenv, y_bar, x_snr, y_snr, save_path=save_path)
 
 
 def main():
