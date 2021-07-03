@@ -1,13 +1,16 @@
-from polyfit import reduce_polyfit
-from potential_flow import ME_phi, ME_p, ME_y, E_p, E_phi, PotentialFlowEnv, plot_prediction_contours
-from potential_flow import SensorArray
-import numpy as np
-import tensorflow as tf
-from scipy.stats import circmean
-from scipy.optimize import curve_fit
-import scipy.signal as signal
-import sampling
 from multiprocessing import Pool
+
+import numpy as np
+import scipy.signal as signal
+import tensorflow as tf
+from scipy.optimize import curve_fit
+from scipy.stats import circmean
+
+import sampling
+from polyfit import reduce_polyfit
+from potential_flow import (E_p, E_phi, ME_p, ME_phi, ME_y, PotentialFlowEnv,
+                            SensorArray, plot_prediction_contours)
+
 # from scipy.optimize._lsq.trf import trf_bounds
 # from scipy.optimize._numdiff import approx_derivative
 

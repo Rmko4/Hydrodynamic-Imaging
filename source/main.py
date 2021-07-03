@@ -1,17 +1,20 @@
-import kerastuner
-from polyfit import reduce_polyfit
-import potential_flow as pf
-from potential_flow import PotentialFlowEnv, SensorArray, plot_prediction_contours
-from mlp import MLP, MLPHyperModel, MLPTuner
-from qm import QM
-import sampling
-import numpy as np
 from datetime import datetime
+
+import kerastuner
+import numpy as np
 import tensorflow as tf
-from utils.mpl_import import plt
-from tensorflow import keras
 from sklearn.utils import shuffle as sk_shuffle
+from tensorflow import keras
+
+import potential_flow as pf
+import sampling
+from mlp import MLP, MLPHyperModel, MLPTuner
+from polyfit import reduce_polyfit, search_best_model
+from potential_flow import (PotentialFlowEnv, SensorArray,
+                            plot_prediction_contours)
+from qm import QM
 from sampling import print_sample_metrics
+from utils.mpl_import import plt
 
 DATA_PATH = "sample_data/"
 RES_PATH = "results/"
@@ -79,15 +82,14 @@ def load_data(file):
     data.close()
     return samples_u, samples_y
 
-
-def init_data(file_z, pfenv: PotentialFlowEnv, sensors: SensorArray, noise=0, shuffle=False, plot=False):
+def init_data(file_z, pfenv: PotentialFlowEnv, sensors: SensorArray, noise=0, resample=False, shuffle=False, plot=False):
     file_name = file_z + FNAME_POSTFIX
     samples_u, samples_y = load_data(DATA_PATH + file_name)
 
     if plot:
         sampling.plot(samples_y)
 
-    if noise != 0:
+    if noise != 0 or resample is True:
         samples_u = pfenv.resample_sensor(
             samples_y, sensors, noise_stddev=noise)
 
@@ -118,7 +120,8 @@ def run_QM(pfenv: PotentialFlowEnv, data, data_type='sinusoid', multi_process=Tr
     samples_u, samples_y = data
     qm = QM(pfenv)
     # qm.search_best_model(samples_u, samples_y)
-    p_eval, phi_eval = qm.evaluate(samples_u, samples_y, multi_process=multi_process)
+    p_eval, phi_eval = qm.evaluate(
+        samples_u, samples_y, multi_process=multi_process)
 
     file_name = "QM_" + str(SAMPLE_DISTS[0]) + "_" + data_type
 
@@ -164,7 +167,8 @@ def run_MLP(pfenv: PotentialFlowEnv, data, window_size=1, data_type='sinusoid'):
 
         mlp.physics_informed_phi = False
         mlp.physics_informed_u = True
-        mlp.compile(optimizer=keras.optimizers.Adam(learning_rate=5e-5, clipvalue=1.0))
+        mlp.compile(optimizer=keras.optimizers.Adam(
+            learning_rate=5e-5, clipvalue=1.0))
         mlp.fit(samples_u, samples_y, batch_size=2048, validation_split=0.2, epochs=200,
                 callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)])
         # file_name = 'sample_pair_sinusoid_0.4w_' + '2_' + \
@@ -189,16 +193,17 @@ def run_MLP(pfenv: PotentialFlowEnv, data, window_size=1, data_type='sinusoid'):
 def main():
     D_sensors = D
     dimensions = (2 * D, D)
-    y_offset_v = Y_OFFSET
+    y_offset = Y_OFFSET
     a_v = 10e-3
     f_v = 45
     Amp_v = 2e-3
     W_v = 2 * np.pi * f_v * Amp_v  # Speed use for the vibration.
     dur_v = 1
     f_s_v = 2048
+    W_p = 0.5
 
     sensors = SensorArray(N_SENSORS, (-0.4*D_sensors, 0.4*D_sensors))
-    pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors, a_v, W_v)
+    pfenv = PotentialFlowEnv(dimensions, y_offset, sensors, a_v, W_v)
     # pfenv.show_env()
 
     # gen_sinusoid_data_sets(pfenv, sensors, SAMPLE_DISTS[1], A=Amp_v, f=f_v, duration=dur_v, f_s=f_s_v, noise=1.5e-5)
@@ -206,17 +211,50 @@ def main():
     # res = pfenv(tf.constant([[-0.3, 0.4, np.pi/4]]))
     # Change noise to 1.5e-5 and a_v W_v to 0.01
 
-    signal = init_data('sample_pair_sinusoid_0.4w_' +
-                             str(SAMPLE_DISTS[0]) + '_0', pfenv, sensors, noise=0, shuffle=False)
-    noisy_signal = init_data('sample_pair_sinusoid_0.4w_' +
-                             str(SAMPLE_DISTS[0]) + '_1.5e-05', pfenv, sensors, noise=0, shuffle=False)
-    file_name = 'sinusoid_0.4w_' + str(SAMPLE_DISTS[0]) + '_snr'
-    pf.plot_snr(pfenv, 4, signal[1], signal[0], noisy_signal[0], save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
+    # signal = init_data('sample_pair_sinusoid_0.4w_' +
+    #                          str(SAMPLE_DISTS[0]) + '_0', pfenv, sensors, noise=0, shuffle=False)
+    # noisy_signal = init_data('sample_pair_sinusoid_0.4w_' +
+    #                          str(SAMPLE_DISTS[0]) + '_1.5e-05', pfenv, sensors, noise=0, shuffle=False)
+    # file_name = 'sinusoid_' + str(SAMPLE_DISTS[0]) + '_snr'
+    # pf.plot_snr(pfenv, 4, signal[1], signal[0], noisy_signal[0], save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
 
-    # path_u, path_y = pfenv.resample_points_to_path(samples_y, sensors, noise_stddev=1e-5, n_fwd=4, n_bwd=20)
-    # samples_u = reduce_polyfit(path_u, -5)
-    # data = (samples_u, samples_y)
+    pfenv.W = tf.constant(W_p)
+    signal = init_data('sample_pair_' +
+                        str(SAMPLE_DISTS[0]) + '_0', pfenv, sensors, noise=0, resample=True, shuffle=False)
+    # noisy_signal = init_data('path_' +
+    #                          str(SAMPLE_DISTS[0]) + '_1.5e-05_NEW', pfenv, sensors, noise=0, shuffle=False)
+    noisy_signal = init_data('sample_pair_' +
+                             str(SAMPLE_DISTS[0]) + '_0', pfenv, sensors, noise=1.5e-5, shuffle=False)
+    file_name = 'path_' + str(SAMPLE_DISTS[0]) + '_snr'
+    pf.plot_snr(pfenv, 4, signal[1], signal[0], noisy_signal[0],
+                save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
 
+    samples_y = signal[1]
+    # path_u, path_y = pfenv.resample_points_to_path(samples_y, sensors, noise_stddev=0, n_fwd=4, n_bwd=35)
+    # file_z = DATA_PATH + 'path_35_0' + FNAME_POSTFIX
+    # np.savez(file_z, path_u)
+
+    # file_z = DATA_PATH + 'path_35_0' + FNAME_POSTFIX
+    # data = np.load(file_z)
+    # path_u = data['arr_0']
+    # data.close()
+    # path_u = pfenv.apply_gauss_noise(path_u, 1.5e-5)
+
+    # u_pred = reduce_polyfit(path_u, -5, 1.22e-08, 5.26e-10, 2.32e-08)
+    # file_z = DATA_PATH + 'path_' + str(SAMPLE_DISTS[0]) + '_1.5e-05_NEW' + FNAME_POSTFIX
+    # np.savez(file_z, u_pred, samples_y)
+
+    # path_u_noise = pfenv.apply_gauss_noise(path_u, 1.5e-5)
+    # path_u_noise, u_true = sk_shuffle(path_u_noise, signal[0])
+
+    # search_best_model(path_u_noise[0:5000], u_true[0:5000])
+
+
+    # search = HalvingRandomSearchCV(PolyFit(), param_distributions, cv=2, scoring='neg_mean_squared_error', n_candidates=3).fit(path_u_noise, path_u)
+    # print(search.best_params_)
+    
+    # np.savez(DATA_PATH + 'path_' + str(SAMPLE_DISTS[0]) + '_1.5e-05_NEW', samples_u, samples_y)
+    pass
 
     # file_z = 'sample_pair_sinusoid_0.4w_' + \
     #     str(SAMPLE_DISTS[0]) + '_0'
@@ -252,7 +290,6 @@ def main():
 
     # run_QM(pfenv, data, data_type='sinusoid', multi_process=True)
 
-
     # file_z = 'sample_pair_' + str(SAMPLE_DISTS[0]) + '_0'
     # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
 
@@ -280,13 +317,12 @@ def main():
 
     # pfenv.W = tf.constant(0.5)
     # data = pfenv.resample_points_to_path(y, sensors, sampling_freq=f_s_v, noise_stddev=1.5e-5, n_fwd=4, n_bwd=20)
-    
+
     # qm = QM(pfenv)
     # qm.search_best_model(data[0], y)
 
     # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
     # pass
-
 
 
 if __name__ == "__main__":
