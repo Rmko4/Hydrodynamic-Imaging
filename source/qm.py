@@ -73,10 +73,12 @@ class QM:
             Psi_o = self.pfenv.Psi_o(rho).numpy()
             Psi_n = self.pfenv.Psi_n(rho).numpy()
 
-            cos_phi = v_x * Psi_n - v_y * Psi_o
-            sin_phi = v_y * Psi_e - v_x * Psi_o
+            D = Psi_e * Psi_n - Psi_o ** 2
 
-            phi = np.pi + np.math.atan2(sin_phi, cos_phi)
+            cos_phi = (v_x * Psi_n - v_y * Psi_o)
+            sin_phi = (v_y * Psi_e - v_x * Psi_o)
+
+            phi =  np.pi + np.math.atan2(-D*sin_phi, -D*cos_phi)
             phi_estimates.append(phi)
 
         return circmean(phi_estimates)

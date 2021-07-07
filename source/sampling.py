@@ -100,7 +100,7 @@ def poisson_disc_sample(domains=np.array([[0., 1.0], [0., 1.0]]), r=0.05, k=30, 
 
 
 def sample_path_on_pos(p_0, step_distance=.5,
-                       max_turn_angle=np.pi/4, n_fwd=4, n_bwd=15,
+                       max_turn_angle=np.pi/4, n_fwd=4, n_bwd=20,
                        inner_sampling_factor=1):
     def forward(p, distance):
         x = p[0] + distance * np.cos(p[2])

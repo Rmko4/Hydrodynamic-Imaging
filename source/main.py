@@ -194,7 +194,7 @@ def main():
     D_sensors = D
     dimensions = (2 * D, D)
     y_offset = Y_OFFSET
-    a_v = 10e-3
+    a_v = 20e-3 # CHANGE TO 20 for path
     f_v = 45
     Amp_v = 2e-3
     W_v = 2 * np.pi * f_v * Amp_v  # Speed use for the vibration.
@@ -218,30 +218,30 @@ def main():
     # file_name = 'sinusoid_' + str(SAMPLE_DISTS[0]) + '_snr'
     # pf.plot_snr(pfenv, 4, signal[1], signal[0], noisy_signal[0], save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
 
-    pfenv.W = tf.constant(W_p)
-    signal = init_data('sample_pair_' +
-                        str(SAMPLE_DISTS[0]) + '_0', pfenv, sensors, noise=0, resample=True, shuffle=False)
+    # pfenv.W = tf.constant(W_p)
+    # signal = init_data('sample_pair_' +
+    #                     str(SAMPLE_DISTS[0]) + '_0', pfenv, sensors, noise=0, resample=True, shuffle=False)
     # noisy_signal = init_data('path_' +
-    #                          str(SAMPLE_DISTS[0]) + '_1.5e-05_NEW', pfenv, sensors, noise=0, shuffle=False)
-    noisy_signal = init_data('sample_pair_' +
-                             str(SAMPLE_DISTS[0]) + '_0', pfenv, sensors, noise=1.5e-5, shuffle=False)
-    file_name = 'path_' + str(SAMPLE_DISTS[0]) + '_snr'
-    pf.plot_snr(pfenv, 4, signal[1], signal[0], noisy_signal[0],
-                save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
+                            #  str(SAMPLE_DISTS[0]) + '_1.5e-05', pfenv, sensors, noise=0, shuffle=False)
+    # noisy_signal = init_data('sample_pair_' +
+    #                          str(SAMPLE_DISTS[0]) + '_0', pfenv, sensors, noise=1.5e-5, shuffle=False)
+    # file_name = 'path_' + str(SAMPLE_DISTS[0]) + '_snr'
+    # pf.plot_snr(pfenv, 4, signal[1], signal[0], noisy_signal[0],
+    #             save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
 
-    samples_y = signal[1]
-    # path_u, path_y = pfenv.resample_points_to_path(samples_y, sensors, noise_stddev=0, n_fwd=4, n_bwd=35)
-    # file_z = DATA_PATH + 'path_35_0' + FNAME_POSTFIX
+    # samples_y = signal[1]
+    # path_u, path_y = pfenv.resample_points_to_path(samples_y, sensors, noise_stddev=0, n_fwd=4, n_bwd=20)
+    # file_z = DATA_PATH + 'path_20_L_2_0' + FNAME_POSTFIX
     # np.savez(file_z, path_u)
 
-    # file_z = DATA_PATH + 'path_35_0' + FNAME_POSTFIX
+    # file_z = DATA_PATH + 'path_20_L_0' + FNAME_POSTFIX
     # data = np.load(file_z)
     # path_u = data['arr_0']
     # data.close()
-    # path_u = pfenv.apply_gauss_noise(path_u, 1.5e-5)
 
-    # u_pred = reduce_polyfit(path_u, -5, 1.22e-08, 5.26e-10, 2.32e-08)
-    # file_z = DATA_PATH + 'path_' + str(SAMPLE_DISTS[0]) + '_1.5e-05_NEW' + FNAME_POSTFIX
+    # path_u = pfenv.apply_gauss_noise(path_u, 1.5e-5)
+    # u_pred = reduce_polyfit(path_u, -5, 7.09e-09, 5.58e-11, 1.29e-08)
+    # file_z = DATA_PATH + 'path_' + str(SAMPLE_DISTS[0]) + '_1.5e-05_20_L_2' + FNAME_POSTFIX
     # np.savez(file_z, u_pred, samples_y)
 
     # path_u_noise = pfenv.apply_gauss_noise(path_u, 1.5e-5)
@@ -265,13 +265,13 @@ def main():
     # pass
 
     # file_name = "QM_" + "" + \
-    #     str(SAMPLE_DISTS[0]) + "_sinusoid" + FNAME_RES_POSTFIX
+    #     str(SAMPLE_DISTS[0]) + "_path" + FNAME_RES_POSTFIX
     # data = np.load(RES_PATH + file_name)
     # p_eval = data['arr_0']
     # phi_eval = data['arr_1']
     # samples_y = data['arr_2']
 
-    # file_name = "QM_" + "" + str(SAMPLE_DISTS[0]) + "_" + 'sinusoid'
+    # file_name = "QM_" + "" + str(SAMPLE_DISTS[0]) + "_" + 'path'
 
     # plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval,
     #                          save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
@@ -304,11 +304,12 @@ def main():
     # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
 
     # pfenv.W = tf.constant(0.5)
-    # data_path = pfenv.resample_points_to_path(data[1], sensors, sampling_freq=f_s_v, noise_stddev=1.0e-5, n_fwd=4, n_bwd=20)
-    # samples_u = reduce_polyfit(data_path[0], -5)
-    # data = (samples_u, data[1])
-    # file_name = "path" + "_2_" + str(SAMPLE_DISTS[0]) + "_" + str(1.0e-5)
-    # np.savez(DATA_PATH + file_name, data[0], data[1])
+    # # data_path = pfenv.resample_points_to_path(data[1], sensors, sampling_freq=f_s_v, noise_stddev=1.0e-5, n_fwd=4, n_bwd=20)
+    # # samples_u = reduce_polyfit(data_path[0], -5)
+    # # data = (samples_u, data[1])
+    # file_name = "path_" + str(SAMPLE_DISTS[0]) + "_" + str(1.5e-5) + '_20_L'
+    # # np.savez(DATA_PATH + file_name, data[0], data[1])
+    # data = init_data(file_name, pfenv, sensors, noise=0, shuffle=True)
 
     # run_QM(pfenv, data, data_type='path')
 

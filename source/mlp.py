@@ -134,7 +134,7 @@ class MLP(keras.Sequential):
                 u_pred = self.pfenv(y_pred)
                 u_true = self.pfenv(y)
 
-                loss_u = self._PINN_MSE(u_true, u_pred)
+                loss_u = self._PINN_MAE(u_true, u_pred)
                 # Summing losses for single gradient.
                 # tf.print(loss_u)
                 loss = (loss_y + self.alpha * loss_u) / (1 + self.alpha)
@@ -220,7 +220,7 @@ class MLP(keras.Sequential):
         MAE_out = (MAE_p + MAE_phi) / (4. * N)
         return MAE_out
 
-    def _PINN_MSE(self, u_true, u_pred):
+    def _PINN_MAE(self, u_true, u_pred):
         # def _rescale(x):
         #     abs_max = tf.reduce_max(tf.abs(x), axis=1)
         #     output = x/tf.reshape(abs_max, (-1, 1))
@@ -264,7 +264,7 @@ class MLPHyperModel(HyperModel):
         for i in range(n_layers):
             units.append(hp.Int("units_" + str(i),
                                 min_value=32, max_value=2048, step=1, default=32))
-        learning_rate = hp.Float("learning_rate", 1e-4, 1e-2, sampling='log')
+        learning_rate = hp.Float("learning_rate", 1e-5, 1e-2, sampling='log')
 
         mlp = MLP(self.pfenv, n_layers, units, physics_informed_phi=self.physics_informed_phi,
                   phi_gradient=self.phi_gradient, window_size=self.window_size)

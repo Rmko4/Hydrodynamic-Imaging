@@ -216,7 +216,7 @@ class PotentialFlowEnv:
 
     def resample_points_to_path(self, samples_y, sensor: SensorArray = None,
                                 noise_stddev=0, sampling_freq=2048.0,
-                                inner_sampling_factor=10, n_fwd=4, n_bwd=15,
+                                inner_sampling_factor=10, n_fwd=4, n_bwd=20,
                                 max_turn_angle=np.pi/100):
         if sensor is not None:
             self.sensor = sensor
@@ -437,9 +437,9 @@ def binned_stat(pfenv: PotentialFlowEnv, pos, values, statistic="median", cell_s
 def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, save_path=None,
                              title=None):
     data = [p_eval, phi_eval/np.pi]
-    # levels = [0., 0.01, 0.02, 0.03, 0.04, 0.06, 0.08, 0.1]
-    levels = [0., 0.01, 0.03, 0.05, 0.09]
-    titles = [r"$\mathrm{E}_\mathbf{p}$", r"$\mathrm{E}_\phi/\pi$"]
+    levels = [0., 0.01, 0.02, 0.04, 0.07, 0.1]
+    # levels = [0., 0.01, 0.03, 0.05, 0.09]
+    titles = [r"$\mathrm{E}_\mathbf{p}$", r"$\mathrm{E}_\varphi/\pi$"]
     suptitle = title
     cell_size = 0.02
 
@@ -527,14 +527,15 @@ def plot_snr(pfenv: PotentialFlowEnv, sensor_i, y_bar, signal, noisy_signal, sav
 def main():
     tf.config.run_functions_eagerly(True)
 
-    # print(ME_phi(tf.constant([0., 0., -2.2*np.pi]),
-    #              tf.constant([0., 0., 2.2*np.pi])))
+    print(ME_phi(tf.constant([0., 0., -1.5*np.pi]),
+                  tf.constant([0., 0., 2.2*np.pi])))
 
     # print(E_phi_2(tf.constant([0., 0., -2.2*np.pi]),
     #               tf.constant([0., 0., 2.2*np.pi])))
 
     pfenv = PotentialFlowEnv(sensor=SensorArray(10, (-0.5, 0.5)))
     y_bar = tf.constant([.5, .5, 0.5*np.pi])
+
     # w = tf.constant([np.cos(0.5 * np.pi), np.sin(0.5 * np.pi)], dtype=tf.float32)
     # g_bar = tf.concat((y_bar, [1.]), axis=-1)
     # print(pfenv.v_tf_g(g_bar))

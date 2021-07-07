@@ -40,7 +40,7 @@ def _MSE_model(path_u, u_true, alpha=5.2e-9, beta=5.6e-10, gamma=9.6e-9):
     return err
 
 def search_best_model(path_u, u_true, iters=100):
-    param_bounds = [[5e-8, 5e-10], [1e-9, 1e-10], [1e-8, 5e-8]]
+    param_bounds = [[1e-9, 1e-8], [1e-11, 1e-10], [8e-9, 3e-8]]
     alpha = rng.uniform(*param_bounds[0], size=iters)
     beta = rng.uniform(*param_bounds[1], size=iters)
     gamma = rng.uniform(*param_bounds[2], size=iters)
