@@ -136,14 +136,11 @@ def run_MLP(pfenv: PotentialFlowEnv, data, window_size=1, data_type='sinusoid'):
     # mlp = MLP(pfenv, 3, units=[512, 160, 32], physics_informed_u=False,
     #           physics_informed_phi=False, phi_gradient=True, window_size=window_size,
     #           print_summary=True)
-    mlp = MLP(pfenv, 5, units=[544, 1372, 1150, 2048, 1725], physics_informed_u=False,
-              physics_informed_phi=False, phi_gradient=True, window_size=window_size,
-              print_summary=True)
-    mlp.compile(optimizer=keras.optimizers.Adam(learning_rate=1e-4))
-    # logs = "logs/" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    mlp = MLP(pfenv, 5, units=[544, 1372, 1150, 2048, 1725], pi_u=False,
+              pi_phi=False, phi_gradient=True, pi_learning_rate=5e-5, pi_clipvalue=1e2,
+              window_size=window_size, print_summary=True)
+    mlp.compile(learning_rate=1e-4)
 
-    # tboard_callback = tf.keras.callbacks.TensorBoard(log_dir=logs,
-    #                                                  histogram_freq=1)
     if window_size != 1:
         train, val, test = data
         mlp.fit(train, epochs=1000, validation_data=val,
@@ -157,29 +154,15 @@ def run_MLP(pfenv: PotentialFlowEnv, data, window_size=1, data_type='sinusoid'):
         samples_u, samples_y = data
         mlp.fit(samples_u, samples_y, batch_size=2048, validation_split=0.2, epochs=200,
                 callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)])
-        # file_name = 'sample_pair_sinusoid_0.4w_' + '2_' + \
-        #     str(SAMPLE_DISTS[0]) + '_1.5e-05' + FNAME_POSTFIX
-        file_name = 'path_' + '2_' + \
-            str(SAMPLE_DISTS[0]) + '_1e-05' + FNAME_POSTFIX
-        samples_u2, samples_y2 = load_data(DATA_PATH + file_name)
-        p_eval, phi_eval = mlp.evaluate_full(samples_u2, samples_y2)
-        plot_prediction_contours(pfenv, samples_y2, p_eval, phi_eval)
 
-        mlp.physics_informed_phi = False
-        mlp.physics_informed_u = True
-        mlp.compile(optimizer=keras.optimizers.Adam(
-            learning_rate=5e-5, clipvalue=1.0))
-        mlp.fit(samples_u, samples_y, batch_size=2048, validation_split=0.2, epochs=200,
-                callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)])
-        # file_name = 'sample_pair_sinusoid_0.4w_' + '2_' + \
-        #     str(SAMPLE_DISTS[0]) + '_1.5e-05' + FNAME_POSTFIX
-        file_name = 'path_' + '2_' + \
-            str(SAMPLE_DISTS[0]) + '_1e-05' + FNAME_POSTFIX
+        file_name = 'sample_pair_sinusoid_0.4w_' + '2_' + \
+            str(SAMPLE_DISTS[0]) + '_1.5e-05' + FNAME_POSTFIX
         samples_u, samples_y = load_data(DATA_PATH + file_name)
-        # samples_u = pfenv.resample_sensor(
-        #     samples_y, sensors, noise_stddev=1e-5)
 
-        p_eval, phi_eval = mlp.evaluate_full(samples_u, samples_y)
+
+
+
+    p_eval, phi_eval = mlp.evaluate_full(samples_u, samples_y)
 
     file_name = "MLP_" + "u_" + str(SAMPLE_DISTS[0]) + "_" + data_type
 
@@ -276,13 +259,13 @@ def main():
     # plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval,
     #                          save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
 
-    # file_z = 'sample_pair_sinusoid_0.4w_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
-    # data_type = 'sinusoid'
+    file_z = 'sample_pair_sinusoid_0.4w_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
+    data_type = 'sinusoid'
     # file_z = 'path_' + str(SAMPLE_DISTS[0]) + '_1e-05'
     # data_type = 'path'
-    # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
-
-    # run_MLP(pfenv, data, data_type=data_type)
+    data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
+    # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
+    run_MLP(pfenv, data, data_type=data_type)
 
     # file_z = 'sample_pair_sinusoid_0.4w_' + \
     #     '2_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
@@ -322,7 +305,6 @@ def main():
     # qm = QM(pfenv)
     # qm.search_best_model(data[0], y)
 
-    # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
     # pass
 
 
