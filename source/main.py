@@ -100,9 +100,9 @@ def init_data(file_z, pfenv: PotentialFlowEnv, sensors: SensorArray, noise=0, re
 
 def find_best_model(pfenv, data, max_trials=10, max_epochs=500, validation_split=0.2):
     u, y = data
-    hypermodel = MLPHyperModel(pfenv, False, True, 1)
+    hypermodel = MLPHyperModel(pfenv, pi_u=False, pi_phi=False, n_layers=5, units=[1065, 1930, 968, 923, 1992], learning_rate=7.3e-4)
     tuner = MLPTuner(hypermodel, objective=kerastuner.Objective(
-        "val_ME_y",  'min'), max_trials=max_trials, directory='tuner_logs', project_name='MLP_0.015_1e-5_full_range')
+        "val_ME_y",  'min'), max_trials=max_trials, directory='tuner_logs', project_name='MLP_0.015_1e-5_path')
     tuner.search_space_summary()
 
     tuner.search(u, y, epochs=max_epochs, validation_split=validation_split)
@@ -136,10 +136,10 @@ def run_MLP(pfenv: PotentialFlowEnv, data, window_size=1, data_type='sinusoid'):
     # mlp = MLP(pfenv, 3, units=[512, 160, 32], physics_informed_u=False,
     #           physics_informed_phi=False, phi_gradient=True, window_size=window_size,
     #           print_summary=True)
-    mlp = MLP(pfenv, 5, units=[544, 1372, 1150, 2048, 1725], pi_u=False,
-              pi_phi=False, phi_gradient=True, pi_learning_rate=5e-5, pi_clipvalue=1e2,
+    mlp = MLP(pfenv, 5, units=[2048, 1978, 128, 128, 128], pi_u=False,
+              pi_phi=True, phi_gradient=True, pi_learning_rate=2.9e-4, pi_clipnorm=7.4e01,
               window_size=window_size, print_summary=True)
-    mlp.compile(learning_rate=1e-4)
+    mlp.compile(learning_rate=3.1e-3)
 
     if window_size != 1:
         train, val, test = data
@@ -155,7 +155,7 @@ def run_MLP(pfenv: PotentialFlowEnv, data, window_size=1, data_type='sinusoid'):
         mlp.fit(samples_u, samples_y, batch_size=2048, validation_split=0.2, epochs=200,
                 callbacks=[tf.keras.callbacks.EarlyStopping('val_ME_y', patience=10)])
 
-        file_name = 'sample_pair_sinusoid_0.4w_' + '2_' + \
+        file_name = 'path_' + '2_' + \
             str(SAMPLE_DISTS[0]) + '_1.5e-05' + FNAME_POSTFIX
         samples_u, samples_y = load_data(DATA_PATH + file_name)
 
@@ -164,7 +164,7 @@ def run_MLP(pfenv: PotentialFlowEnv, data, window_size=1, data_type='sinusoid'):
 
     p_eval, phi_eval = mlp.evaluate_full(samples_u, samples_y)
 
-    file_name = "MLP_" + "u_" + str(SAMPLE_DISTS[0]) + "_" + data_type
+    file_name = "MLP_" + "phi_"+ str(SAMPLE_DISTS[0]) + "_" + data_type
 
     plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval,
                              save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
@@ -259,10 +259,10 @@ def main():
     # plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval,
     #                          save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
 
-    file_z = 'sample_pair_sinusoid_0.4w_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
-    data_type = 'sinusoid'
-    # file_z = 'path_' + str(SAMPLE_DISTS[0]) + '_1e-05'
-    # data_type = 'path'
+    # file_z = 'sample_pair_sinusoid_0.4w_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
+    # data_type = 'sinusoid'
+    file_z = 'path_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
+    data_type = 'path'
     data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
     # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
     run_MLP(pfenv, data, data_type=data_type)

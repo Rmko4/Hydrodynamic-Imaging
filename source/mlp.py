@@ -63,7 +63,7 @@ class MLP(keras.Sequential):
     # physics_informed = [False, "phi", "u"]
     def __init__(self, pfenv: PotentialFlowEnv, n_layers=1, units=[256],
                  pi_u=False, pi_phi=False, phi_gradient=True, pi_learning_rate = 1e-4,
-                 pi_clipvalue=1e2, alpha=1, window_size=1, print_summary=True):
+                 pi_clipnorm=1e2, alpha=1, window_size=1, print_summary=True):
         super(MLP, self).__init__()
         self.pfenv = pfenv
         self.s_bar = pfenv.sensor()
@@ -72,7 +72,7 @@ class MLP(keras.Sequential):
         self.pi_u = pi_u
         self.pi_phi = pi_phi
         self.pi_learning_rate = pi_learning_rate
-        self.pi_clipvalue = pi_clipvalue
+        self.pi_clipnorm = pi_clipnorm
 
         self.y_loss = self._MAE_normalized if phi_gradient else self._MAE_p_normalized
         self.pi_run = False
@@ -111,9 +111,17 @@ class MLP(keras.Sequential):
             outputs = tf.concat([outputs, tf.reshape(phi, [-1, 1])], axis=-1)
         return outputs
 
-    def compile(self, learning_rate=1e-3, clipvalue=None):
+    def compile(self, learning_rate=1e-3, clipnorm=None):
+        lr_schedule = keras.optimizers.schedules.ExponentialDecay(
+                      initial_learning_rate=learning_rate,
+                      decay_steps=250,
+                      decay_rate=0.9)
+        if clipnorm is not None:
+            optimizer=keras.optimizers.Adam(lr_schedule, clipnorm=clipnorm)
+        else:
+            optimizer=keras.optimizers.Adam(lr_schedule)
         super(MLP, self).compile(
-            optimizer=keras.optimizers.Adam(learning_rate, clipvalue),  # Optimizer
+            optimizer=optimizer,  # Optimizer
             # Loss function to minimize
             # MSE_y
             loss=self.y_loss,
@@ -182,16 +190,17 @@ class MLP(keras.Sequential):
             workers=1,
             use_multiprocessing=False):
             
-        self.pi_run = False
-        super().fit(x=x, y=y, batch_size=batch_size, epochs=epochs,verbose=verbose, callbacks=callbacks, validation_split=validation_split, validation_data=validation_data, shuffle=shuffle, class_weight=class_weight, sample_weight=sample_weight, initial_epoch=initial_epoch, steps_per_epoch=steps_per_epoch, validation_steps=validation_steps, validation_batch_size=validation_batch_size, validation_freq=validation_freq, max_queue_size=max_queue_size, workers=workers, use_multiprocessing=use_multiprocessing)
-
-        self.pi_run = True
+    
         if self.pi_u or self.pi_phi:
-            self.compile(self.pi_learning_rate, self.pi_clipvalue)
+            super().fit(x=x, y=y, batch_size=batch_size, epochs=epochs,verbose=verbose, callbacks=callbacks, validation_split=validation_split, validation_data=validation_data, shuffle=shuffle, class_weight=class_weight, sample_weight=sample_weight, initial_epoch=initial_epoch, steps_per_epoch=steps_per_epoch, validation_steps=validation_steps, validation_batch_size=validation_batch_size, validation_freq=validation_freq, max_queue_size=max_queue_size, workers=workers, use_multiprocessing=use_multiprocessing)
+            self.pi_run = True
+            self.compile(self.pi_learning_rate, self.pi_clipnorm)
+            return super().fit(x=x, y=y, batch_size=batch_size, epochs=epochs,verbose=verbose, callbacks=callbacks, validation_split=validation_split, validation_data=validation_data, shuffle=shuffle, class_weight=class_weight, sample_weight=sample_weight, initial_epoch=initial_epoch, steps_per_epoch=steps_per_epoch, validation_steps=validation_steps, validation_batch_size=validation_batch_size, validation_freq=validation_freq, max_queue_size=max_queue_size, workers=workers, use_multiprocessing=use_multiprocessing)
         else:
-            self.compile(self.learning_rate, None)
+            return super().fit(x=x, y=y, batch_size=batch_size, epochs=epochs,verbose=verbose, callbacks=callbacks, validation_split=validation_split, validation_data=validation_data, shuffle=shuffle, class_weight=class_weight, sample_weight=sample_weight, initial_epoch=initial_epoch, steps_per_epoch=steps_per_epoch, validation_steps=validation_steps, validation_batch_size=validation_batch_size, validation_freq=validation_freq, max_queue_size=max_queue_size, workers=workers, use_multiprocessing=use_multiprocessing)
 
-        return super().fit(x=x, y=y, batch_size=batch_size, epochs=epochs,verbose=verbose, callbacks=callbacks, validation_split=validation_split, validation_data=validation_data, shuffle=shuffle, class_weight=class_weight, sample_weight=sample_weight, initial_epoch=initial_epoch, steps_per_epoch=steps_per_epoch, validation_steps=validation_steps, validation_batch_size=validation_batch_size, validation_freq=validation_freq, max_queue_size=max_queue_size, workers=workers, use_multiprocessing=use_multiprocessing)
+
+        
 
     def _phi_calc(self, u, p):
 
@@ -292,24 +301,36 @@ class MLP(keras.Sequential):
 
 
 class MLPHyperModel(HyperModel):
-    def __init__(self, pfenv, physics_informed_phi=False, phi_gradient=True, window_size=1):
+    def __init__(self, pfenv, pi_u=False, pi_phi=False, n_layers=1, units=[32], learning_rate=1e4):
         self.pfenv = pfenv
-        self.physics_informed_phi = physics_informed_phi
-        self.phi_gradient = phi_gradient
-        self.window_size = window_size
+        self.pi_phi = pi_phi
+        self.pi_u = pi_u
+
+        self.n_layers = n_layers
+        self.units = units
+        self.learning_rate = learning_rate
 
     def build(self, hp):
-        n_layers = hp.Int("num_hidden_layers", min_value=1,
-                          max_value=5, default=1)
-        units = []
-        for i in range(n_layers):
-            units.append(hp.Int("units_" + str(i),
-                                min_value=32, max_value=2048, step=1, default=32))
-        learning_rate = hp.Float("learning_rate", 1e-5, 1e-2, sampling='log')
+        if self.pi_u or self.pi_phi:
+            pi_learning_rate = hp.Float("pi_learning_rate", 1e-6, 1e-3, sampling='log')
+            pi_clipnorm = hp.Float("pi_clipnorm", 1e-2, 1e5, sampling='log')
 
-        mlp = MLP(self.pfenv, n_layers, units, pi_phi=self.physics_informed_phi,
-                  phi_gradient=self.phi_gradient, window_size=self.window_size)
-        mlp.compile(learning_rate)
+        else:
+            # self.n_layers = hp.Int("num_hidden_layers", min_value=1,
+            #                 max_value=5, default=1)
+            self.n_layers = 5
+            self.units = []
+            for i in range(self.n_layers):
+                self.units.append(hp.Int("units_" + str(i),
+                                    min_value=128, max_value=2048, step=1, default=32))
+            self.learning_rate = hp.Float("learning_rate", 1e-5, 1e-2, sampling='log')
+            pi_learning_rate = None
+            pi_clipnorm = None
+            
+
+        mlp = MLP(self.pfenv, self.n_layers, self.units, pi_phi=self.pi_phi, pi_u=self.pi_u,
+                  pi_learning_rate=pi_learning_rate, pi_clipnorm=pi_clipnorm, alpha=1)
+        mlp.compile(self.learning_rate)
 
         return mlp
 
