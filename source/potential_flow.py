@@ -439,11 +439,11 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, s
     data = [p_eval, phi_eval/np.pi]
     levels = [0., 0.01, 0.02, 0.04, 0.07, 0.1]
     # levels = [0., 0.01, 0.03, 0.05, 0.09]
-    titles = [r"$\mathrm{E}_\mathbf{p}$", r"$\mathrm{E}_\varphi/\pi$"]
+    titles = [r"$\mathrm{E}_\mathbf{p}(\mathrm{m})$", r"$\mathrm{E}_\varphi/\pi(\mathrm{rad})$"]
     suptitle = title
     cell_size = 0.02
 
-    plot_contours(pfenv, y_bar, data, cell_size, levels=levels,
+    return plot_contours(pfenv, y_bar, data, cell_size, levels=levels,
                   suptitle=suptitle, titles=titles, save_path=save_path)
 
 
@@ -501,7 +501,8 @@ def plot_contours(pfenv: PotentialFlowEnv, y_bar, data, cell_size, levels, supti
     if save_path:
         plt.savefig(save_path, bbox_inches='tight')
     # plt.tight_layout()
-    plt.show()
+    # plt.show()
+    return cntr2
 
 
 def plot_snr(pfenv: PotentialFlowEnv, sensor_i, y_bar, signal, noisy_signal, save_path=None):

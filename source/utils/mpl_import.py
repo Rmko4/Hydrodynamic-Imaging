@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.cm as cm
+from matplotlib.colors import LinearSegmentedColormap, BoundaryNorm
+from matplotlib.colorbar import ColorbarBase
 
 C_WIDTH = 3.229
 

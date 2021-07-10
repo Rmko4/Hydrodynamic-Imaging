@@ -1,5 +1,6 @@
 from datetime import datetime
-from utils.mpl_import import C_WIDTH
+from utils.mpl_import import *
+from matplotlib.ticker import (MultipleLocator, AutoMinorLocator)
 
 import kerastuner
 import numpy as np
@@ -277,18 +278,20 @@ def main():
         for i in range(1, len(levels)):
             mask = (p_eval < levels[i]) & (p_eval >= levels[i-1])
             p_count.append(100 * np.count_nonzero(mask)/len(p_eval))
-            mask = (phi_eval/np.pi < levels[i]) & (phi_eval/np.pi >= levels[i-1])
+            mask = (phi_eval/np.pi < levels[i]
+                    ) & (phi_eval/np.pi >= levels[i-1])
             phi_count.append(100 * np.count_nonzero(mask)/len(phi_eval))
 
-        print(np.mean(p_eval))
-        print(np.mean(phi_eval))
+        # print(np.mean(p_eval))
+        # print(np.mean(phi_eval))
 
         p_evals.append(p_eval)
         phi_evals.append(phi_eval)
         p_counts.append(p_count)
         phi_counts.append(phi_count)
-        # plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval,
-        #                         save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
+        plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval,
+                                save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
+    cntr = plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval, save_path=None)
 
     p_counts = np.array(p_counts).T
     phi_counts = np.array(phi_counts).T
@@ -296,24 +299,23 @@ def main():
     cmap = cm.get_cmap('viridis')
     # plt.figure(figsize=(6.69, C_WIDTH))
     fig, axes = plt.subplots(
-        nrows=1, ncols=2, sharex=True, sharey=True, figsize=(6.69, C_WIDTH + 1))
+        nrows=1, ncols=2, sharex=True, sharey=True, figsize=(C_WIDTH, C_WIDTH + 2))
     axes[0].grid(axis='y', lw=1)
     axes[1].grid(axis='y', lw=1)
 
     for i in range(len(levels) - 1):
         bottom = 0 if i-1 < 0 else bottom + p_counts[i-1]
-        axes[0].bar([0,1,2,3,6,7,8,9], p_counts[i], bottom=bottom, color=cmap(
+        axes[0].bar([0,1,2,3,5,6,7,8], p_counts[i], bottom=bottom, color=cmap(
             (levels[i] + 0.5*(levels[i+1]-levels[i]))/levels[-1]), edgecolor='white',
-            linewidth=0.5, width=0.7)
+            linewidth=0.5)
     for i in range(len(levels) - 1):
         bottom = 0 if i-1 < 0 else bottom + phi_counts[i-1]
-        axes[1].bar([0,1,2,3,6,7,8,9], phi_counts[i], bottom=bottom, color=cmap(
+        axes[1].bar([0,1,2,3,5,6,7,8], phi_counts[i], bottom=bottom, color=cmap(
             (levels[i] + 0.5*(levels[i+1]-levels[i]))/levels[-1]), edgecolor='white',
-            linewidth=0.5, width=0.7)
+            linewidth=0.5)
 
-
-    plt.xticks([0,1,2,3,6,7,8,9],
-               2 * ['QM', 'MLP', r'MLP-$\mathbf{u}$', r'MLP-$\mathbf{\varphi}$'])
+    plt.xticks([0, 1, 2, 3, 5, 6, 7, 8],
+               2 * ['QM', 'MLP', r'MLP-$\mathbf{u}$', r'MLP-$\mathbf{\varphi}$'], fontsize=9)
     titles = [r"$\mathrm{E}_\mathbf{p}$", r"$\mathrm{E}_\varphi/\pi$"]
 
     y_pos = [0.93, 0.85]
@@ -322,25 +324,81 @@ def main():
         axes[i].set_axisbelow(True)
         plt.setp(axes[i].get_xticklabels(), rotation=90, horizontalalignment='center', va='top')
         axes[i].set_title(titles[i])
-        axes[i].annotate('Vib', xy=(0.25, y_pos[i]), xytext=(0.25, y_pos[i] + 0.05), xycoords='axes fraction', 
+        axes[i].annotate('Vib', xy=(0.25, y_pos[i]), xytext=(0.25, y_pos[i] + 0.05), xycoords='axes fraction',
             ha='center', va='bottom',
-            bbox=dict(boxstyle='square', fc='white'),
-            arrowprops=dict(arrowstyle='-[, widthB=4.0, lengthB=0.5', lw=1.0))
-        axes[i].annotate('Tra', xy=(0.75, y_pos[i]), xytext=(0.75, y_pos[i] + 0.05), xycoords='axes fraction', 
+            bbox=dict(boxstyle='square', fc='white', ec='white'),
+            arrowprops=dict(arrowstyle='-[, widthB=1.85, lengthB=0.5', lw=1.0))
+        axes[i].annotate('Tra', xy=(0.76, y_pos[i]), xytext=(0.76, y_pos[i] + 0.05), xycoords='axes fraction',
             ha='center', va='bottom',
-            bbox=dict(boxstyle='square', fc='white'),
-            arrowprops=dict(arrowstyle='-[, widthB=4.0, lengthB=0.5', lw=1.0))
+            bbox=dict(boxstyle='square', fc='white', ec='white'),
+            arrowprops=dict(arrowstyle='-[, widthB=1.85, lengthB=0.5', lw=1.0))
 
     axes[0].set_ylim((0., 100))
-    axes[0].set_ylabel(r"Rel. frequency $(\%)$")
-    
-    plt.tight_layout()
+    axes[0].set_ylabel(r"Rel. frequency (%)")
+    axes[0].yaxis.set_label_coords(-.21, 0.50)
+
+    cb = fig.colorbar(cntr, ax=axes.ravel().tolist(), location='top',
+                 spacing='proportional', shrink=1.0, pad=0.1)
+    plt.setp(cb.ax.get_xticklabels(),rotation=90, ha='center', va='bottom')
+    # plt.tight_layout(rect=(-0.02,0,1,1))
+    plt.savefig(PLOT_PATH + "spread" + FNAME_FIG_POSTFIX, bbox_inches='tight')
     plt.show()
 
-    plt.boxplot(p_evals, showfliers=False)
-    plt.show()
+    fig, axes = plt.subplots(
+        nrows=1, ncols=2, sharex=True, sharey=True, figsize=(C_WIDTH, C_WIDTH + 1))
+    axes[0].grid(axis='y', which='both', lw=1)
+    axes[1].grid(axis='y', which='both', lw=1)
 
-    plt.boxplot(phi_evals, showfliers=False)
+    titles = [r"$\mathrm{E}_\mathbf{p}$", r"$\mathrm{E}_\varphi/\pi$"]
+
+    y_pos = [0.66, 0.56, 0.97, 0.845]
+    data = [np.array(p_evals).T, np.array(phi_evals).T / np.pi]
+
+    for i in range(2):
+        for j in range(len(levels) - 1):
+            axes[i].bar(4, levels[j + 1] - levels[j], bottom=levels[j], color=cmap(
+                (levels[j] + 0.5*(levels[j+1]-levels[j]))/levels[-1]), width=9)
+
+        axes[i].hlines([0, 0.02, 0.04, 0.06, 0.08, 0.1], -0.5, 8.5, colors='darkgrey', linewidths=1)
+        axes[i].hlines([0.01, 0.07], -0.5, 8.5, colors='darkgrey', linewidths=0.5)
+        axes[i].boxplot(data[i], showfliers=False, positions=[
+                        0, 1, 2, 3, 5, 6, 7, 8], patch_artist=True, boxprops=dict(facecolor='C0'))
+        axes[i].set_axisbelow(True)
+
+
+
+        axes[i].set_title(titles[i])
+        if i == 0:
+            axes[i].annotate('Vib', xy=(0.25, y_pos[2*i]), xytext=(0.25, y_pos[2*i] + 0.05), xycoords='axes fraction',
+                             ha='center', va='bottom',
+                             bbox=dict(boxstyle='square', fc='white', ec='white'),
+                             arrowprops=dict(arrowstyle='-[, widthB=1.85, lengthB=0.5', lw=1.0))
+        else:
+            axes[i].annotate('', xy=(0.25, y_pos[2*i]), xytext=(0.25, y_pos[2*i] + 0.035), xycoords='axes fraction',
+                             ha='center', va='bottom',
+                             arrowprops=dict(arrowstyle='-[, widthB=1.85, lengthB=0.5', lw=1.0))
+            axes[i].annotate('Vib', xy=(0.25, y_pos[2*i]), xytext=(0.15, y_pos[2*i] + 0.04), xycoords='axes fraction',
+                             ha='center', va='bottom',
+                             bbox=dict(boxstyle='square', fc='white', ec='white'))
+        axes[i].annotate('Tra', xy=(0.76, y_pos[2*i + 1]), xytext=(0.76, y_pos[2*i + 1] + 0.05), xycoords='axes fraction',
+                         ha='center', va='bottom',
+                         bbox=dict(boxstyle='square', fc='white', ec='white'),
+                         arrowprops=dict(arrowstyle='-[, widthB=1.85, lengthB=0.5', lw=1.0))
+
+    axes[0].set_ylabel(r"(m)")
+    axes[1].set_ylabel(r"(rad)")
+    axes[0].set_ylim((-0.005, 0.210))
+
+    plt.xticks([0, 1, 2, 3, 5, 6, 7, 8],
+               2 * ['QM', 'MLP', r'MLP-$\mathbf{u}$', r'MLP-$\mathbf{\varphi}$'], fontsize=9)
+    axes[i].yaxis.set_major_locator(MultipleLocator(0.04))
+    axes[i].yaxis.set_minor_locator(MultipleLocator(0.02))
+
+    for i in range(2):
+        plt.setp(axes[i].get_xticklabels(), rotation=90,
+                 horizontalalignment='center', va='top')
+
+    plt.savefig(PLOT_PATH + "boxplot" + FNAME_FIG_POSTFIX, bbox_inches='tight')
     plt.show()
 
     # file_z = 'sample_pair_sinusoid_0.4w_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
@@ -351,11 +409,11 @@ def main():
     # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
     # run_MLP(pfenv, data, data_type=data_type)
 
-    # file_z = 'sample_pair_sinusoid_0.4w_' + \
+    # file_z = 'path_' + \
     #     '2_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
     # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
 
-    # run_QM(pfenv, data, data_type='sinusoid', multi_process=True)
+    # run_QM(pfenv, data, data_type='path', multi_process=True)
 
     # file_z = 'sample_pair_' + str(SAMPLE_DISTS[0]) + '_0'
     # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
