@@ -1,4 +1,5 @@
 from datetime import datetime
+from utils.mpl_import import C_WIDTH
 
 import kerastuner
 import numpy as np
@@ -14,7 +15,7 @@ from potential_flow import (PotentialFlowEnv, SensorArray,
                             plot_prediction_contours)
 from qm import QM
 from sampling import print_sample_metrics
-from utils.mpl_import import plt
+from utils.mpl_import import plt, cm
 
 DATA_PATH = "sample_data/"
 RES_PATH = "results/"
@@ -82,6 +83,7 @@ def load_data(file):
     data.close()
     return samples_u, samples_y
 
+
 def init_data(file_z, pfenv: PotentialFlowEnv, sensors: SensorArray, noise=0, resample=False, shuffle=False, plot=False):
     file_name = file_z + FNAME_POSTFIX
     samples_u, samples_y = load_data(DATA_PATH + file_name)
@@ -100,7 +102,8 @@ def init_data(file_z, pfenv: PotentialFlowEnv, sensors: SensorArray, noise=0, re
 
 def find_best_model(pfenv, data, max_trials=10, max_epochs=500, validation_split=0.2):
     u, y = data
-    hypermodel = MLPHyperModel(pfenv, pi_u=False, pi_phi=False, n_layers=5, units=[1065, 1930, 968, 923, 1992], learning_rate=7.3e-4)
+    hypermodel = MLPHyperModel(pfenv, pi_u=False, pi_phi=False, n_layers=5, units=[
+                               1065, 1930, 968, 923, 1992], learning_rate=7.3e-4)
     tuner = MLPTuner(hypermodel, objective=kerastuner.Objective(
         "val_ME_y",  'min'), max_trials=max_trials, directory='tuner_logs', project_name='MLP_0.015_1e-5_path')
     tuner.search_space_summary()
@@ -159,12 +162,9 @@ def run_MLP(pfenv: PotentialFlowEnv, data, window_size=1, data_type='sinusoid'):
             str(SAMPLE_DISTS[0]) + '_1.5e-05' + FNAME_POSTFIX
         samples_u, samples_y = load_data(DATA_PATH + file_name)
 
-
-
-
     p_eval, phi_eval = mlp.evaluate_full(samples_u, samples_y)
 
-    file_name = "MLP_" + "phi_"+ str(SAMPLE_DISTS[0]) + "_" + data_type
+    file_name = "MLP_" + "phi_" + str(SAMPLE_DISTS[0]) + "_" + data_type
 
     plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval,
                              save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
@@ -177,7 +177,7 @@ def main():
     D_sensors = D
     dimensions = (2 * D, D)
     y_offset = Y_OFFSET
-    a_v = 20e-3 # CHANGE TO 20 for path
+    a_v = 20e-3  # CHANGE TO 20 for path
     f_v = 45
     Amp_v = 2e-3
     W_v = 2 * np.pi * f_v * Amp_v  # Speed use for the vibration.
@@ -205,7 +205,7 @@ def main():
     # signal = init_data('sample_pair_' +
     #                     str(SAMPLE_DISTS[0]) + '_0', pfenv, sensors, noise=0, resample=True, shuffle=False)
     # noisy_signal = init_data('path_' +
-                            #  str(SAMPLE_DISTS[0]) + '_1.5e-05', pfenv, sensors, noise=0, shuffle=False)
+    #  str(SAMPLE_DISTS[0]) + '_1.5e-05', pfenv, sensors, noise=0, shuffle=False)
     # noisy_signal = init_data('sample_pair_' +
     #                          str(SAMPLE_DISTS[0]) + '_0', pfenv, sensors, noise=1.5e-5, shuffle=False)
     # file_name = 'path_' + str(SAMPLE_DISTS[0]) + '_snr'
@@ -232,10 +232,9 @@ def main():
 
     # search_best_model(path_u_noise[0:5000], u_true[0:5000])
 
-
     # search = HalvingRandomSearchCV(PolyFit(), param_distributions, cv=2, scoring='neg_mean_squared_error', n_candidates=3).fit(path_u_noise, path_u)
     # print(search.best_params_)
-    
+
     # np.savez(DATA_PATH + 'path_' + str(SAMPLE_DISTS[0]) + '_1.5e-05_NEW', samples_u, samples_y)
     pass
 
@@ -248,24 +247,109 @@ def main():
     # pass
 
     # file_name = "QM_" + "" + \
-    #     str(SAMPLE_DISTS[0]) + "_path" + FNAME_RES_POSTFIX
-    # data = np.load(RES_PATH + file_name)
-    # p_eval = data['arr_0']
-    # phi_eval = data['arr_1']
-    # samples_y = data['arr_2']
+    #     str(SAMPLE_DISTS[0]) + "_path"
 
-    # file_name = "QM_" + "" + str(SAMPLE_DISTS[0]) + "_" + 'path'
+    files = ["QM_" + "" + str(SAMPLE_DISTS[0]) + "_" + 'sinusoid',
+             "MLP_" + "" + str(SAMPLE_DISTS[0]) + "_" + 'sinusoid',
+             "MLP_" + "u_" + str(SAMPLE_DISTS[0]) + "_" + 'sinusoid',
+             "MLP_" + "phi_" + str(SAMPLE_DISTS[0]) + "_" + 'sinusoid',
+             "QM_" + "" + str(SAMPLE_DISTS[0]) + "_" + 'path',
+             "MLP_" + "" + str(SAMPLE_DISTS[0]) + "_" + 'path',
+             "MLP_" + "u_" + str(SAMPLE_DISTS[0]) + "_" + 'path',
+             "MLP_" + "phi_" + str(SAMPLE_DISTS[0]) + "_" + 'path']
 
-    # plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval,
-    #                          save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
+    p_evals = []
+    phi_evals = []
+    p_counts = []
+    phi_counts = []
+
+    levels = [0., 0.01, 0.02, 0.04, 0.07, 0.1]
+
+    for file_name in files:
+        data = np.load(RES_PATH + file_name + FNAME_RES_POSTFIX)
+        p_eval = data['arr_0']
+        phi_eval = data['arr_1']
+        samples_y = data['arr_2']
+
+        p_count = []
+        phi_count = []
+
+        for i in range(1, len(levels)):
+            mask = (p_eval < levels[i]) & (p_eval >= levels[i-1])
+            p_count.append(100 * np.count_nonzero(mask)/len(p_eval))
+            mask = (phi_eval/np.pi < levels[i]) & (phi_eval/np.pi >= levels[i-1])
+            phi_count.append(100 * np.count_nonzero(mask)/len(phi_eval))
+
+        print(np.mean(p_eval))
+        print(np.mean(phi_eval))
+
+        p_evals.append(p_eval)
+        phi_evals.append(phi_eval)
+        p_counts.append(p_count)
+        phi_counts.append(phi_count)
+        # plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval,
+        #                         save_path=PLOT_PATH + file_name + FNAME_FIG_POSTFIX)
+
+    p_counts = np.array(p_counts).T
+    phi_counts = np.array(phi_counts).T
+
+    cmap = cm.get_cmap('viridis')
+    # plt.figure(figsize=(6.69, C_WIDTH))
+    fig, axes = plt.subplots(
+        nrows=1, ncols=2, sharex=True, sharey=True, figsize=(6.69, C_WIDTH + 1))
+    axes[0].grid(axis='y', lw=1)
+    axes[1].grid(axis='y', lw=1)
+
+    for i in range(len(levels) - 1):
+        bottom = 0 if i-1 < 0 else bottom + p_counts[i-1]
+        axes[0].bar([0,1,2,3,6,7,8,9], p_counts[i], bottom=bottom, color=cmap(
+            (levels[i] + 0.5*(levels[i+1]-levels[i]))/levels[-1]), edgecolor='white',
+            linewidth=0.5, width=0.7)
+    for i in range(len(levels) - 1):
+        bottom = 0 if i-1 < 0 else bottom + phi_counts[i-1]
+        axes[1].bar([0,1,2,3,6,7,8,9], phi_counts[i], bottom=bottom, color=cmap(
+            (levels[i] + 0.5*(levels[i+1]-levels[i]))/levels[-1]), edgecolor='white',
+            linewidth=0.5, width=0.7)
+
+
+    plt.xticks([0,1,2,3,6,7,8,9],
+               2 * ['QM', 'MLP', r'MLP-$\mathbf{u}$', r'MLP-$\mathbf{\varphi}$'])
+    titles = [r"$\mathrm{E}_\mathbf{p}$", r"$\mathrm{E}_\varphi/\pi$"]
+
+    y_pos = [0.93, 0.85]
+
+    for i in range(2):
+        axes[i].set_axisbelow(True)
+        plt.setp(axes[i].get_xticklabels(), rotation=90, horizontalalignment='center', va='top')
+        axes[i].set_title(titles[i])
+        axes[i].annotate('Vib', xy=(0.25, y_pos[i]), xytext=(0.25, y_pos[i] + 0.05), xycoords='axes fraction', 
+            ha='center', va='bottom',
+            bbox=dict(boxstyle='square', fc='white'),
+            arrowprops=dict(arrowstyle='-[, widthB=4.0, lengthB=0.5', lw=1.0))
+        axes[i].annotate('Tra', xy=(0.75, y_pos[i]), xytext=(0.75, y_pos[i] + 0.05), xycoords='axes fraction', 
+            ha='center', va='bottom',
+            bbox=dict(boxstyle='square', fc='white'),
+            arrowprops=dict(arrowstyle='-[, widthB=4.0, lengthB=0.5', lw=1.0))
+
+    axes[0].set_ylim((0., 100))
+    axes[0].set_ylabel(r"Rel. frequency $(\%)$")
+    
+    plt.tight_layout()
+    plt.show()
+
+    plt.boxplot(p_evals, showfliers=False)
+    plt.show()
+
+    plt.boxplot(phi_evals, showfliers=False)
+    plt.show()
 
     # file_z = 'sample_pair_sinusoid_0.4w_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
     # data_type = 'sinusoid'
-    file_z = 'path_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
-    data_type = 'path'
-    data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
+    # file_z = 'path_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
+    # data_type = 'path'
+    # data = init_data(file_z, pfenv, sensors, noise=0, shuffle=True)
     # mlp = find_best_model(pfenv, data, max_trials=100, max_epochs=200, validation_split=0.2)
-    run_MLP(pfenv, data, data_type=data_type)
+    # run_MLP(pfenv, data, data_type=data_type)
 
     # file_z = 'sample_pair_sinusoid_0.4w_' + \
     #     '2_' + str(SAMPLE_DISTS[0]) + '_1.5e-05'
