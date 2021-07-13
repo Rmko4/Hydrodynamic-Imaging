@@ -150,7 +150,7 @@ class MLP(keras.Sequential):
                 u_pred = self.pfenv(y_pred)
                 u_true = self.pfenv(y)
 
-                loss_u = self._PINN_MAE(u_true, u_pred)
+                loss_u = self._PINN_MAE(u, u_pred)
                 # Summing losses for single gradient.
                 # tf.print(loss_u)
                 loss = (loss_y + self.alpha * loss_u) / (1 + self.alpha)

@@ -439,7 +439,7 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, s
     data = [p_eval, phi_eval/np.pi]
     levels = [0., 0.01, 0.02, 0.04, 0.07, 0.1]
     # levels = [0., 0.01, 0.03, 0.05, 0.09]
-    titles = [r"$\mathrm{E}_\mathbf{p}(\mathrm{m})$", r"$\mathrm{E}_\varphi/\pi(\mathrm{rad})$"]
+    titles = [r"$\mathrm{E}_\mathbf{p}(\mathrm{m})$", r"$\mathrm{E}_\varphi(\mathrm{\pi\:rad})$"]
     suptitle = title
     cell_size = 0.02
 
