@@ -82,7 +82,6 @@ class QM:
             phi_estimates.append(phi)
 
         return circmean(phi_estimates)
-
     def _step_predict(self, u_bar, curve_fit=True):
         quad = self.psi_quad(u_bar)
         b_i = np.argmax(quad)
