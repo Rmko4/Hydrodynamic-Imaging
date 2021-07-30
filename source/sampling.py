@@ -68,7 +68,7 @@ def poisson_disc_sample(domains=np.array([[0., 1.0], [0., 1.0]]), r=0.05, k=30, 
                     left += shift
                     right = n_cells[i]
                 iter.append(slice(left, right))
-            else:    
+            else:
                 iter.append(slice(grid_min[i], grid_max[i]))
         sample_i = u_grid[tuple(iter)].flatten()
         sample_i = sample_i[sample_i != -1]
@@ -106,7 +106,7 @@ def sample_path_on_pos(p_0, step_distance=.5,
         x = p[0] + distance * np.cos(p[2])
         y = p[1] + distance * np.sin(p[2])
         return np.array([x, y, p[2]])
-    
+
     n_paths = np.shape(p_0)[0]
     path_len = n_fwd + n_bwd + 1
 
@@ -134,8 +134,6 @@ def sample_path_on_pos(p_0, step_distance=.5,
 def sample_path_2D(domains=np.array([[0., 1.0], [0., 1.0]]), step_distance=.05,
                    max_turn_angle=np.pi/4, circum_radius=None, n_samples=100,
                    inner_sampling_factor=1, mode='rotate'):
-
-    
 
     if circum_radius is None:
         n_reg_poly = 2 * np.pi / max_turn_angle
@@ -203,8 +201,6 @@ def sample_path_2D(domains=np.array([[0., 1.0], [0., 1.0]]), step_distance=.05,
             phi_addition = 0.5*np.pi
 
         if phi_addition is None:
-            # phi = rng.normal(0, max_turn_angle)
-            # phi = (x[2] + np.clip(phi, -max_turn_angle, max_turn_angle)) % (2*np.pi)
             phi = (x[2] + rng.uniform(-max_turn_angle,
                                       max_turn_angle)) % (2*np.pi)
         else:
@@ -301,13 +297,13 @@ def print_mean_min_distance(samples):
 
 
 def main():
-    # samples_path = sample_path_2D(mode='rotate')
-    # plot(samples_path)
+    samples_path = sample_path_2D(mode='rotate')
+    plot(samples_path)
 
     samples = poisson_disc_sample(
         np.array([[0., 1.0], [0., 1.0], [0., 1.0]]), r=0.08)
-    # print(len(samples))
-    # plot(samples)
+    print(len(samples))
+    plot(samples)
     pass
 
 

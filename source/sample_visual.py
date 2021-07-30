@@ -1,11 +1,14 @@
-import sampling
 import numpy as np
+
+import sampling
 from potential_flow import PotentialFlowEnv, SensorArray
 from utils.mpl_import import plt
 
 D = .5
 Y_OFFSET = .025
 N_SENSORS = 8
+A = 10e-3
+W_T = 5e-1
 
 
 def plot_f(plt):
@@ -58,9 +61,6 @@ def plot_toy_poisson_path(pfenv: PotentialFlowEnv):
     plt.yticks([0.096, 0.098, 0.1, 0.102],
                ['96', '98', '100', '102'])
 
-    # ax.xaxis.set_label_coords(0.5, -.17)
-    # ax.yaxis.set_label_coords(-.11, 0.55)
-
     plt.tight_layout()
     plt.show()
 
@@ -74,15 +74,9 @@ def main():
     D_sensors = D
     dimensions = (2 * D, D)
     y_offset_v = Y_OFFSET
-    a_v = 10e-3
-
-    # f_v = 45
-    # Amp_v = 2e-3
-    # W_v = 2 * np.pi * f_v * Amp_v # Speed for vibrating sphere
-    W_t = 0.5  # Speed for a translating sphere
 
     sensors = SensorArray(N_SENSORS, (-0.4*D_sensors, 0.4*D_sensors))
-    pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors, a_v, W_t)
+    pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors, A, W_T)
     pfenv.show_env()
 
     plot_toy_poisson(pfenv)

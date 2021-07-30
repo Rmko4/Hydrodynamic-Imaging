@@ -293,8 +293,9 @@ class PotentialFlowEnv:
 
         return samples_u, samples_y
 
-    def show_env(self):
-        plt.figure(figsize=(3.229, 2.2))
+    # Gives best results with the default pfenv params
+    def show_env(self, figsize=(C_WIDTH, 2.2)):
+        plt.figure(figsize=figsize)
         ax = plt.gca()
 
         if self.domains is not None:
@@ -305,7 +306,7 @@ class PotentialFlowEnv:
 
         ax.spines['left'].set_position('center')
         ax.spines['right'].set_color('none')
-        ax.spines['left'].set_bounds((0, 0.535))
+        ax.spines['left'].set_bounds((0, 1.02*self.domains[1, 1]))
 
         s_bar = self.sensor()
         plt.scatter(s_bar, np.zeros((len(s_bar), )), s=16, zorder=-2)
@@ -342,22 +343,18 @@ class PotentialFlowEnv:
         plt.annotate(r'$\varphi$', (0.18, 0.28))
         plt.annotate(r'$\theta$', (0.14, 0.18))
 
-        # def mouse_move(event):
-        #     x, y = event.xdata, event.ydata
-        #     print(x, y)
-
-        # plt.connect('motion_notify_event', mouse_move)
-
-        plt.ylim(0, 0.6)
+        plt.ylim(0, 1.15*self.domains[1, 1])
         ax.set_aspect("equal")
         ax.spines['top'].set_visible(False)
 
-        plt.annotate(text='', xy=(-0.48, self.domains[1, 0]), xytext=(-0.48,
-                                                                      self.domains[1, 1]), arrowprops=dict(arrowstyle='<->'))
-        plt.annotate(text='', xy=(self.domains[0, 0], 0.545), xytext=(
-            self.domains[0, 1], 0.545), arrowprops=dict(arrowstyle='<->'))
-        plt.annotate('500 mm', (-0.46, 0.21), rotation=90)
-        plt.annotate('1000 mm', (-0.08, 0.565))
+        plt.annotate(text='', xy=(0.96*self.domains[0, 0], self.domains[1, 0]), xytext=(0.96*self.domains[0, 0],
+                                                                                        self.domains[1, 1]), arrowprops=dict(arrowstyle='<->'))
+        plt.annotate(text='', xy=(self.domains[0, 0], 1.04*self.domains[1, 1]), xytext=(
+            self.domains[0, 1], 1.04*self.domains[1, 1]), arrowprops=dict(arrowstyle='<->'))
+        plt.annotate('500 mm', (0.88*self.domains[0, 0], (self.domains[1, 1] -
+                                                         self.domains[1, 0])/2), rotation=90, ha='center', va='center')
+        plt.annotate(
+            '1000 mm', (0, 1.1*self.domains[1, 1]), ha='center', va='center')
 
         plt.xlabel(r'$x(\mathrm{mm}) \longrightarrow$')
         plt.ylabel(r'$y(\mathrm{mm}) \longrightarrow$')
@@ -439,12 +436,13 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, s
     data = [p_eval, phi_eval/np.pi]
     levels = [0., 0.01, 0.02, 0.04, 0.07, 0.1]
     # levels = [0., 0.01, 0.03, 0.05, 0.09]
-    titles = [r"$\mathrm{E}_\mathbf{p}(\mathrm{m})$", r"$\mathrm{E}_\varphi(\mathrm{\pi\:rad})$"]
+    titles = [r"$\mathrm{E}_\mathbf{p}(\mathrm{m})$",
+              r"$\mathrm{E}_\varphi(\mathrm{\pi\:rad})$"]
     suptitle = title
     cell_size = 0.02
 
     return plot_contours(pfenv, y_bar, data, cell_size, levels=levels,
-                  suptitle=suptitle, titles=titles, save_path=save_path)
+                         suptitle=suptitle, titles=titles, save_path=save_path)
 
 
 def plot_snr_contours(pfenv: PotentialFlowEnv, y_bar, x_snr, y_snr, save_path=None):
@@ -529,7 +527,7 @@ def main():
     tf.config.run_functions_eagerly(True)
 
     print(ME_phi(tf.constant([0., 0., -1.5*np.pi]),
-                  tf.constant([0., 0., 2.2*np.pi])))
+                 tf.constant([0., 0., 2.2*np.pi])))
 
     # print(E_phi_2(tf.constant([0., 0., -2.2*np.pi]),
     #               tf.constant([0., 0., 2.2*np.pi])))

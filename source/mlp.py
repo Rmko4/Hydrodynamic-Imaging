@@ -1,12 +1,14 @@
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
-from kerastuner import HyperModel
 import kerastuner as kt
 import numpy as np
-from potential_flow import ME_phi, ME_p, E_p, E_phi, ME_y, PotentialFlowEnv, SensorArray, gather_p, gather_phi
-import potential_flow
+import tensorflow as tf
+from kerastuner import HyperModel
 from sklearn.utils import shuffle as sk_shuffle
+from tensorflow import keras
+from tensorflow.keras import layers
+
+import potential_flow
+from potential_flow import (E_p, E_phi, ME_p, ME_phi, ME_y, PotentialFlowEnv,
+                            SensorArray, gather_p, gather_phi)
 
 
 class RescaleProfile(keras.layers.Layer):

@@ -11,9 +11,6 @@ from polyfit import reduce_polyfit
 from potential_flow import (E_p, E_phi, ME_p, ME_phi, ME_y, PotentialFlowEnv,
                             SensorArray, plot_prediction_contours)
 
-# from scipy.optimize._lsq.trf import trf_bounds
-# from scipy.optimize._numdiff import approx_derivative
-
 
 class QM:
     def __init__(self, pfenv: PotentialFlowEnv, optimization_iter=4):
@@ -120,26 +117,11 @@ class QM:
     def curve_fit_optimize(self, p0, u_bar, quad):
         dmn = self.pfenv.domains
         bounds = ([dmn[0, 0], dmn[1, 0]], [dmn[0, 1], dmn[1, 1]])
-        # bounds = ([dmn[0, 0], dmn[1, 0], 0], [dmn[0, 1], dmn[1, 1], 2 * np.pi])
+
         scale = 1 / np.abs(quad).max()
         quad *= scale
         p_i = p0[0:2]
 
-        # def func_wrapped(params):
-        #     return self.psi_quad_scaled_f(scale)(self.s_bar, *params) - quad
-
-        # def jac_wrapped(x, f):
-        #     J = approx_derivative(self.psi_quad_scaled_f(scale), x, rel_step=1e-3, method='2-point',
-        #                             f0=f, bounds=bounds)
-        #     if J.ndim != 2:  # J is guaranteed not sparse.
-        #         J = np.atleast_2d(J)
-
-        #     return J
-
-        # J0 = jac_wrapped(p_i, quad)
-
-        # d = trf_bounds(func_wrapped, jac_wrapped, p_i, quad, J0, bounds[0], bounds[1], 1e-08, 1e-03, 1e-08, 10,
-        #        np.array([1., 1., 1.]), None, 'exact', {}, 0)
         for _ in range(self.optimization_iter):
             # curve_fit uses version that does not raise error upon reaching iter beyond max_nfev
             p_i, _ = curve_fit(self.psi_quad_scaled_phi_f(scale, p0[2]), self.s_bar, quad, p0=p_i,
@@ -164,9 +146,11 @@ class QM:
         pred_y = self.predict(samples_u, curve_fit, multi_process)
         pred_y = tf.convert_to_tensor(pred_y, dtype=tf.float32)
         samples_y = tf.convert_to_tensor(samples_y, dtype=tf.float32)
+
         # Select correct pred_y out of complete signal
         p_eval = E_p(samples_y, pred_y)
         phi_eval = E_phi(samples_y, pred_y)
+
         print(ME_p(samples_y, pred_y))
         print(ME_phi(samples_y, pred_y))
         print(ME_y(self.pfenv)(samples_y, pred_y))
@@ -209,12 +193,10 @@ def main():
     qm = QM(pfenv)
     print(qm.predict(result))
 
-    # qm.phi_calc(result, .5, .5)
+    qm.phi_calc(result, .5, .5)
 
     samples_u, samples_y = pfenv.sample_poisson(noise_stddev=1e-5)
-    # print(qm.psi_quad_env(pfenv.sensor().numpy(), samples_y[0][0].numpy(
-    # ), samples_y[0][1].numpy(), samples_y[0][2].numpy()))
-    # print(pfenv.forward_step(samples_y[0]))
+
     p_eval, phi_eval = qm.evaluate(samples_u, samples_y)
     plot_prediction_contours(pfenv, samples_y, p_eval, phi_eval)
 
