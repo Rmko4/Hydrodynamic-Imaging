@@ -34,7 +34,7 @@ def plot_toy_poisson(pfenv: PotentialFlowEnv):
 
 def plot_toy_poisson_path(pfenv: PotentialFlowEnv):
     y = np.array([[0.2, 0.1, 2.0], [0.197, 0.102, 3.5], [0.199, 0.098, 5.9]])
-    _, samples_y = pfenv.resample_points_to_path(y)
+    _, samples_y = pfenv.resample_states_to_path(y)
 
     y = samples_y.reshape((-1, 3))
 
