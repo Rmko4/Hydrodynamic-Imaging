@@ -73,13 +73,13 @@ def gen_path_data(pfenv: PotentialFlowEnv, duration, noise=0):
     np.savez(DATA_PATH + file_name, samples_u, samples_y)
 
 
-def gen_poisson_path_data(pfenv: PotentialFlowEnv, sensors: SensorArray, sample_dist, f_s=2048, n_fwd, n_bwd, max_turn_angle, noise=0):
+def gen_poisson_path_data(pfenv: PotentialFlowEnv, sensors: SensorArray, sample_dist, n_fwd, n_bwd, max_turn_angle, f_s=2048, noise=0):
     file_z = "sample_pair_" + str(sample_dist) + "_0"
     _, samples_y = init_data(
         file_z, pfenv, sensors, noise=0, shuffle=False)
 
-    samples_u, samples_y = pfenv.resample_states_to_path(samples_y, sensors, noise, max_turn_angle=max_turn_angle,
-                                                         n_fwd=n_fwd, n_bwd=n_bwd, f_s)
+    samples_u, samples_y = pfenv.resample_states_to_path(samples_y, sensors, noise, sampling_freq=f_s, max_turn_angle=max_turn_angle,
+                                                         n_fwd=n_fwd, n_bwd=n_bwd,)
 
     file_name = "path_" + \
         str(sample_dist) + "_" + str(noise)
