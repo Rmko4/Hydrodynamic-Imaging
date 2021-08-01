@@ -7,7 +7,7 @@ from utils.mpl_import import plt
 D = .5
 Y_OFFSET = .025
 N_SENSORS = 8
-A = 10e-3
+A_T = 20e-3
 W_T = 5e-1
 
 
@@ -71,12 +71,10 @@ def plot_toy_path(pfenv: PotentialFlowEnv, duration=10):
 
 
 def main():
-    D_sensors = D
     dimensions = (2 * D, D)
-    y_offset_v = Y_OFFSET
 
-    sensors = SensorArray(N_SENSORS, (-0.4*D_sensors, 0.4*D_sensors))
-    pfenv = PotentialFlowEnv(dimensions, y_offset_v, sensors, A, W_T)
+    sensors = SensorArray(N_SENSORS, (-0.4*D, 0.4*D))
+    pfenv = PotentialFlowEnv(dimensions, Y_OFFSET, sensors, A_T, W_T)
     pfenv.show_env()
 
     plot_toy_poisson(pfenv)
