@@ -5,6 +5,8 @@ from matplotlib.colors import LinearSegmentedColormap, BoundaryNorm
 from matplotlib.colorbar import ColorbarBase
 
 C_WIDTH = 3.229
+PLOTS_PATH = 'plots/'
+FIG_EXT = '.pdf'
 
 params = {
     "text.usetex": True,

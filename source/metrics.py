@@ -1,13 +1,14 @@
-from potential_flow import PotentialFlowEnv
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
+from matplotlib.ticker import MultipleLocator
 from scipy.stats import binned_statistic_2d
-from utils.mpl_import import plt
+
+from potential_flow import PotentialFlowEnv
+from utils.mpl_import import *
 
 
 def gather_p(x):
     return tf.gather(x, indices=[0, 1], axis=-1)
-
 
 def gather_phi(x):
     return tf.gather(x, indices=2, axis=-1)
@@ -16,16 +17,13 @@ def gather_phi(x):
 def ME_p(y_true, y_pred, ord='euclidean'):
     return tf.reduce_mean(E_p(y_true, y_pred, ord=ord))
 
-
 def ME_phi(y_true, y_pred):
     return tf.reduce_mean(E_phi(y_true, y_pred))
-
 
 def ME_y(pfenv: PotentialFlowEnv):
     def ME_y(y_true, y_pred):
         return ME_p(y_true, y_pred)/(2 * max(pfenv.dimensions)) + ME_phi(y_true, y_pred)/(2 * np.pi)
     return ME_y
-
 
 def MSE(y_true, y_pred):
     return tf.reduce_mean(tf.square(y_true - y_pred))
@@ -34,11 +32,9 @@ def MSE(y_true, y_pred):
 def E_p(y_true, y_pred, ord='euclidean'):
     return tf.norm(gather_p(y_true) - gather_p(y_pred), ord=ord, axis=-1)
 
-
 def E_phi(y_true, y_pred):
     phi_e = gather_phi(y_true) - gather_phi(y_pred)
     return tf.abs(tf.atan2(tf.sin(phi_e), tf.cos(phi_e)))
-
 
 def E_phi_2(y_true, y_pred):
     phi_e = gather_phi(y_true) - gather_phi(y_pred)
@@ -77,7 +73,6 @@ def plot_prediction_contours(pfenv: PotentialFlowEnv, y_bar, p_eval, phi_eval, s
                              title=None):
     data = [p_eval, phi_eval/np.pi]
     levels = [0., 0.01, 0.02, 0.04, 0.07, 0.1]
-    # levels = [0., 0.01, 0.03, 0.05, 0.09]
     titles = [r"$\mathrm{E}_\mathbf{p}(\mathrm{m})$",
               r"$\mathrm{E}_\varphi(\mathrm{\pi\:rad})$"]
     suptitle = title
@@ -152,3 +147,111 @@ def plot_snr(pfenv: PotentialFlowEnv, sensor_i, y_bar, signal, noisy_signal, sav
     y_snr = snr(signal, noisy_signal, sensor_i_2)
 
     plot_snr_contours(pfenv, y_bar, x_snr, y_snr, save_path=save_path)
+
+def plot_bar(levels, p_counts, phi_counts, cmap, contour_set):
+    fig, axes = plt.subplots(
+        nrows=1, ncols=2, sharex=True, sharey=True, figsize=(C_WIDTH, C_WIDTH + 2))
+    axes[0].grid(axis='y', lw=1)
+    axes[1].grid(axis='y', lw=1)
+
+    for i in range(len(levels) - 1):
+        bottom = 0 if i-1 < 0 else bottom + p_counts[i-1]
+        axes[0].bar([0, 1, 2, 3, 5, 6, 7, 8], p_counts[i], bottom=bottom, color=cmap(
+            (levels[i] + 0.5*(levels[i+1]-levels[i]))/levels[-1]), edgecolor='white',
+            linewidth=0.5)
+    for i in range(len(levels) - 1):
+        bottom = 0 if i-1 < 0 else bottom + phi_counts[i-1]
+        axes[1].bar([0, 1, 2, 3, 5, 6, 7, 8], phi_counts[i], bottom=bottom, color=cmap(
+            (levels[i] + 0.5*(levels[i+1]-levels[i]))/levels[-1]), edgecolor='white',
+            linewidth=0.5)
+
+    plt.xticks([0, 1, 2, 3, 5, 6, 7, 8],
+               2 * ['QM', 'MLP', r'MLP-$\mathbf{u}$', r'MLP-$\mathbf{\varphi}$'], fontsize=9)
+    titles = [r"$\mathrm{E}_\mathbf{p}(\mathrm{m})$",
+              r"$\mathrm{E}_\varphi(\mathrm{\pi\:rad})$"]
+
+    y_pos = [0.93, 0.85]
+
+    for i in range(2):
+        axes[i].set_axisbelow(True)
+        plt.setp(axes[i].get_xticklabels(), rotation=90,
+                 horizontalalignment='center', va='top')
+        axes[i].set_title(titles[i])
+        axes[i].annotate('Vib', xy=(0.25, y_pos[i]), xytext=(0.25, y_pos[i] + 0.05), xycoords='axes fraction',
+                         ha='center', va='bottom',
+                         bbox=dict(boxstyle='square', fc='white', ec='white'),
+                         arrowprops=dict(arrowstyle='-[, widthB=1.85, lengthB=0.5', lw=1.0))
+        axes[i].annotate('Tra', xy=(0.76, y_pos[i]), xytext=(0.76, y_pos[i] + 0.05), xycoords='axes fraction',
+                         ha='center', va='bottom',
+                         bbox=dict(boxstyle='square', fc='white', ec='white'),
+                         arrowprops=dict(arrowstyle='-[, widthB=1.85, lengthB=0.5', lw=1.0))
+
+    axes[0].set_ylim((0., 100))
+    axes[0].set_ylabel(r"Rel. frequency (\%)")
+    axes[0].yaxis.set_label_coords(-.21, 0.50)
+
+    cb = fig.colorbar(contour_set, ax=axes.ravel().tolist(), location='top',
+                      spacing='proportional', shrink=1.0, pad=0.1)
+    plt.setp(cb.ax.get_xticklabels(), rotation=90, ha='center', va='bottom')
+    plt.savefig(PLOTS_PATH + "spread" + FIG_EXT, bbox_inches='tight')
+    plt.show()
+
+
+def plot_box_whiskers(levels, p_evals, phi_evals, cmap):
+    fig, axes = plt.subplots(
+        nrows=1, ncols=2, sharex=True, sharey=True, figsize=(C_WIDTH, C_WIDTH + 1))
+    axes[0].grid(axis='y', which='both', lw=1)
+    axes[1].grid(axis='y', which='both', lw=1)
+
+    titles = [r"$\mathrm{E}_\mathbf{p}$", r"$\mathrm{E}_\varphi$"]
+
+    y_pos = [0.66, 0.56, 0.97, 0.845]
+    data = [np.array(p_evals).T, np.array(phi_evals).T / np.pi]
+
+    for i in range(2):
+        for j in range(len(levels) - 1):
+            axes[i].bar(4, levels[j + 1] - levels[j], bottom=levels[j], color=cmap(
+                (levels[j] + 0.5*(levels[j+1]-levels[j]))/levels[-1]), width=9)
+
+        axes[i].hlines([0, 0.02, 0.04, 0.06, 0.08, 0.1], -0.5,
+                       8.5, colors='darkgrey', linewidths=1)
+        axes[i].hlines([0.01, 0.07], -0.5, 8.5,
+                       colors='darkgrey', linewidths=0.5)
+        axes[i].boxplot(data[i], showfliers=False, positions=[
+                        0, 1, 2, 3, 5, 6, 7, 8], patch_artist=True, boxprops=dict(facecolor='C0'))
+        axes[i].set_axisbelow(True)
+
+        axes[i].set_title(titles[i])
+        if i == 0:
+            axes[i].annotate('Vib', xy=(0.25, y_pos[2*i]), xytext=(0.25, y_pos[2*i] + 0.05), xycoords='axes fraction',
+                             ha='center', va='bottom',
+                             bbox=dict(boxstyle='square',
+                                       fc='white', ec='white'),
+                             arrowprops=dict(arrowstyle='-[, widthB=1.85, lengthB=0.5', lw=1.0))
+        else:
+            axes[i].annotate('', xy=(0.25, y_pos[2*i]), xytext=(0.25, y_pos[2*i] + 0.035), xycoords='axes fraction',
+                             ha='center', va='bottom',
+                             arrowprops=dict(arrowstyle='-[, widthB=1.85, lengthB=0.5', lw=1.0))
+            axes[i].annotate('Vib', xy=(0.25, y_pos[2*i]), xytext=(0.15, y_pos[2*i] + 0.04), xycoords='axes fraction',
+                             ha='center', va='bottom',
+                             bbox=dict(boxstyle='square', fc='white', ec='white'))
+        axes[i].annotate('Tra', xy=(0.76, y_pos[2*i + 1]), xytext=(0.76, y_pos[2*i + 1] + 0.05), xycoords='axes fraction',
+                         ha='center', va='bottom',
+                         bbox=dict(boxstyle='square', fc='white', ec='white'),
+                         arrowprops=dict(arrowstyle='-[, widthB=1.85, lengthB=0.5', lw=1.0))
+
+    axes[0].set_ylabel(r"$(\mathrm{m})$")
+    axes[1].set_ylabel(r"$(\pi\:\mathrm{rad})$")
+    axes[0].set_ylim((-0.005, 0.210))
+
+    plt.xticks([0, 1, 2, 3, 5, 6, 7, 8],
+               2 * ['QM', 'MLP', r'MLP-$\mathbf{u}$', r'MLP-$\mathbf{\varphi}$'], fontsize=9)
+    axes[i].yaxis.set_major_locator(MultipleLocator(0.04))
+    axes[i].yaxis.set_minor_locator(MultipleLocator(0.02))
+
+    for i in range(2):
+        plt.setp(axes[i].get_xticklabels(), rotation=90,
+                 horizontalalignment='center', va='top')
+
+    plt.savefig(PLOTS_PATH + "boxplot" + FIG_EXT, bbox_inches='tight')
+    plt.show()

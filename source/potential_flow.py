@@ -342,12 +342,6 @@ class PotentialFlowEnv:
 def main():
     tf.config.run_functions_eagerly(True)
 
-    print(ME_phi(tf.constant([0., 0., -1.5*np.pi]),
-                 tf.constant([0., 0., 2.2*np.pi])))
-
-    print(E_phi_2(tf.constant([0., 0., -2.2*np.pi]),
-                  tf.constant([0., 0., 2.2*np.pi])))
-
     pfenv = PotentialFlowEnv(sensor=SensorArray(10, (-0.5, 0.5)))
     y_bar = tf.constant([.5, .5, 0.5*np.pi])
 

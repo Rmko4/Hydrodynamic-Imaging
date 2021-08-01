@@ -6,8 +6,8 @@ from tensorflow import keras
 from tensorflow.keras import layers
 
 import potential_flow
-from potential_flow import (E_p, E_phi, ME_p, ME_phi, ME_y, PotentialFlowEnv,
-                            SensorArray, gather_p, gather_phi)
+from metrics import E_p, E_phi, ME_p, ME_phi, ME_y, gather_p, gather_phi
+from potential_flow import PotentialFlowEnv, SensorArray
 
 
 class RescaleProfile(keras.layers.Layer):
@@ -126,8 +126,6 @@ class MLP(keras.Sequential):
                      potential_flow.ME_y(self.pfenv)],
             run_eagerly=False
         )
-
-        
 
     def train_step(self, data):
         u, y = data
